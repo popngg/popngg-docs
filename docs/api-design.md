@@ -7,6 +7,16 @@
 - rank, medal, difficulty 같은 코드는 label과 sort order를 함께 제공합니다.
 - 기존 `/api/v2`와 신규 API의 호환/전환 정책을 문서화합니다.
 
+## API 문서화 방식
+
+MVP API는 OpenAPI 3.0 문서로 관리하고, MkDocs에서는 Redoc 페이지로 렌더링합니다.
+
+- 사람이 읽는 설계 설명: 이 문서
+- 기계가 읽는 API 계약: `docs/openapi/openapi.yaml`
+- 렌더링된 API Reference: `api-reference.md`
+
+초기에는 문서 repo의 OpenAPI 초안을 직접 관리합니다. 백엔드 구현이 안정되면 SpringDoc에서 생성되는 `/v3/api-docs`를 기준으로 OpenAPI 파일을 갱신하는 방식을 권장합니다.
+
 ## 후보 API
 
 사용자 메모:

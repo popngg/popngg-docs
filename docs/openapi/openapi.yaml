@@ -1,0 +1,769 @@
+openapi: 3.0.3
+info:
+  title: popn.gg API
+  version: 0.1.0-mvp
+  description: |
+    popn.gg High☆Cheers 리팩토링 MVP API 초안입니다.
+
+    주요 정책:
+      - 랭크는 서버가 점수로 계산하지 않고 갱신 원천 데이터에서 수집한 값을 저장합니다.
+      - `song`과 `chart`는 분리합니다.
+      - API 응답은 프론트가 표시하기 쉬운 label과 code를 함께 제공합니다.
+      - DB foreign key constraint는 만들지 않지만 애플리케이션에서 참조 정합성을 검증합니다.
+servers:
+  - url: https://api.popn.gg
+    description: Production
+  - url: http://localhost:8080
+    description: Local development
+tags:
+  - name: Auth
+    description: 로그인과 비밀번호 복구
+  - name: Constants
+    description: 랭크, 메달, 난이도 등 프론트 표시 상수
+  - name: Songs
+    description: 곡과 채보 조회
+  - name: Playdata
+    description: 유저 플레이데이터와 팝클
+  - name: Ranking
+    description: 곡별 랭킹
+  - name: Renew
+    description: 갱신/크롤링 데이터 반영
+x-tagGroups:
+  - name: Public API
+    tags:
+      - Constants
+      - Songs
+      - Playdata
+      - Ranking
+  - name: Account
+    tags:
+      - Auth
+  - name: Ingestion
+    tags:
+      - Renew
+paths:
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: 로그인
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            examples:
+              default:
+                value:
+                  poptomoId: "123456789"
+                  password: "user-password"
+      responses:
+        "200":
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/v1/auth/password-reset/request:
+    post:
+      tags:
+        - Auth
+      summary: 비밀번호 복구 메일 요청
+      description: 이메일 존재 여부는 응답에서 노출하지 않습니다.
+      operationId: requestPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequest"
+      responses:
+        "202":
+          description: 복구 요청 접수
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AcceptedResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/v1/auth/password-reset/confirm:
+    post:
+      tags:
+        - Auth
+      summary: 비밀번호 재설정
+      description: reset token 원문은 DB에 저장하지 않고, 서버에서는 해시값으로 검증합니다.
+      operationId: confirmPasswordReset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetConfirmRequest"
+      responses:
+        "200":
+          description: 비밀번호 변경 완료
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/v1/constants:
+    get:
+      tags:
+        - Constants
+      summary: 표시 상수 조회
+      operationId: getConstants
+      responses:
+        "200":
+          description: 랭크, 메달, 난이도 상수
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConstantsResponse"
+
+  /api/v1/songs:
+    get:
+      tags:
+        - Songs
+      summary: 곡 목록 조회
+      operationId: listSongs
+      parameters:
+        - $ref: "#/components/parameters/Keyword"
+        - $ref: "#/components/parameters/Version"
+        - $ref: "#/components/parameters/Level"
+        - $ref: "#/components/parameters/DifficultyCode"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: 곡 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SongListResponse"
+
+  /api/v1/songs/{songHash}:
+    get:
+      tags:
+        - Songs
+      summary: 곡 상세 조회
+      operationId: getSong
+      parameters:
+        - $ref: "#/components/parameters/SongHash"
+      responses:
+        "200":
+          description: 곡 상세
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SongResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/users/{poptomoId}/playdata:
+    get:
+      tags:
+        - Playdata
+      summary: 유저 전체 플레이데이터 조회
+      operationId: getUserPlaydata
+      parameters:
+        - $ref: "#/components/parameters/PoptomoId"
+      responses:
+        "200":
+          description: 유저 플레이데이터
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPlaydataResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/users/{poptomoId}/popclass:
+    get:
+      tags:
+        - Playdata
+      summary: 유저 팝클 테이블 조회
+      operationId: getUserPopclass
+      parameters:
+        - $ref: "#/components/parameters/PoptomoId"
+      responses:
+        "200":
+          description: 유저 팝클과 상위 50개 플레이데이터
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PopclassResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/v1/charts/{songHash}/{difficultyCode}/ranking:
+    get:
+      tags:
+        - Ranking
+      summary: 채보별 랭킹 조회
+      operationId: getChartRanking
+      parameters:
+        - $ref: "#/components/parameters/SongHash"
+        - $ref: "#/components/parameters/DifficultyCodePath"
+        - name: order
+          in: query
+          schema:
+            type: string
+            enum:
+              - score
+              - medal
+            default: score
+      responses:
+        "200":
+          description: 채보별 랭킹
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChartRankingResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/v1/renew:
+    post:
+      tags:
+        - Renew
+      summary: 플레이데이터 갱신
+      description: 크롤링 원천에서 얻은 score, rankCode, medalCode를 함께 제출합니다.
+      operationId: renewPlaydata
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenewRequest"
+      responses:
+        "200":
+          description: 갱신 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RenewResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SongHash:
+      name: songHash
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 32
+      example: "2302440c63cbe103703f3de51ac205da"
+    PoptomoId:
+      name: poptomoId
+      in: path
+      required: true
+      schema:
+        type: string
+      example: "123456789"
+    Keyword:
+      name: keyword
+      in: query
+      schema:
+        type: string
+      description: 곡명, 장르명, 아티스트 검색어
+    Version:
+      name: version
+      in: query
+      schema:
+        type: integer
+      example: 29
+    Level:
+      name: level
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+      example: 49
+    DifficultyCode:
+      name: difficultyCode
+      in: query
+      schema:
+        type: integer
+        enum:
+          - 1
+          - 2
+          - 3
+          - 4
+      description: 1 LIGHT, 2 NORMAL, 3 HYPER, 4 EX
+    DifficultyCodePath:
+      name: difficultyCode
+      in: path
+      required: true
+      schema:
+        type: integer
+        enum:
+          - 1
+          - 2
+          - 3
+          - 4
+      description: 1 LIGHT, 2 NORMAL, 3 HYPER, 4 EX
+
+  responses:
+    BadRequest:
+      description: 잘못된 요청
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: 인증 실패
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: 접근 권한 없음
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: 리소스 없음
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: 너무 많은 요청
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    SuccessResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: SUCCESS
+        message:
+          type: string
+          example: Success
+    AcceptedResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+              example: null
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          example: INVALID_ARGUMENT
+        message:
+          type: string
+          example: Invalid request.
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+              reason:
+                type: string
+
+    LoginRequest:
+      type: object
+      required:
+        - poptomoId
+        - password
+      properties:
+        poptomoId:
+          type: string
+        password:
+          type: string
+          format: password
+    LoginResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                accessToken:
+                  type: string
+                tokenType:
+                  type: string
+                  example: Bearer
+                expiresIn:
+                  type: integer
+                  example: 43200
+
+    PasswordResetRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: player@example.com
+    PasswordResetConfirmRequest:
+      type: object
+      required:
+        - token
+        - newPassword
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+
+    ConstantsResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                ranks:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RankConstant"
+                medals:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/MedalConstant"
+                difficulties:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/DifficultyConstant"
+    RankConstant:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 1
+        label:
+          type: string
+          example: S+
+        sortOrder:
+          type: integer
+          example: 1
+        referenceMinScore:
+          type: integer
+          nullable: true
+          example: 99000
+        referenceMaxScore:
+          type: integer
+          nullable: true
+          example: 100000
+    MedalConstant:
+      type: object
+      properties:
+        code:
+          type: integer
+        label:
+          type: string
+          example: 어시이지
+        shortLabel:
+          type: string
+        sortOrder:
+          type: integer
+    DifficultyConstant:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 4
+        label:
+          type: string
+          example: EX
+        shortLabel:
+          type: string
+          example: EX
+        sortOrder:
+          type: integer
+
+    SongListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/SongSummary"
+                page:
+                  $ref: "#/components/schemas/PageInfo"
+    SongResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/SongDetail"
+    SongSummary:
+      type: object
+      properties:
+        songHash:
+          type: string
+        genreName:
+          type: string
+        songName:
+          type: string
+        artistName:
+          type: string
+          nullable: true
+        version:
+          type: integer
+        jacketUrl:
+          type: string
+          nullable: true
+        charts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartSummary"
+    SongDetail:
+      allOf:
+        - $ref: "#/components/schemas/SongSummary"
+        - type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    ChartSummary:
+      type: object
+      properties:
+        chartId:
+          type: integer
+          format: int64
+        difficulty:
+          $ref: "#/components/schemas/DifficultyConstant"
+        level:
+          type: integer
+        isUpper:
+          type: boolean
+
+    UserPlaydataResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: "#/components/schemas/UserSummary"
+                playdata:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PlaydataItem"
+    PopclassResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: "#/components/schemas/UserSummary"
+                popclass:
+                  type: integer
+                top50:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PlaydataItem"
+    UserSummary:
+      type: object
+      properties:
+        poptomoId:
+          type: string
+        userName:
+          type: string
+        popclass:
+          type: integer
+        characterName:
+          type: string
+        isHidden:
+          type: boolean
+
+    PlaydataItem:
+      type: object
+      properties:
+        song:
+          $ref: "#/components/schemas/SongSummary"
+        chart:
+          $ref: "#/components/schemas/ChartSummary"
+        score:
+          type: integer
+          example: 98000
+        rank:
+          $ref: "#/components/schemas/RankConstant"
+        medal:
+          $ref: "#/components/schemas/MedalConstant"
+        popclass:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+
+    ChartRankingResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                chart:
+                  $ref: "#/components/schemas/ChartSummary"
+                rankings:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RankingItem"
+    RankingItem:
+      type: object
+      properties:
+        ranking:
+          type: integer
+        user:
+          $ref: "#/components/schemas/UserSummary"
+        score:
+          type: integer
+        rank:
+          $ref: "#/components/schemas/RankConstant"
+        medal:
+          $ref: "#/components/schemas/MedalConstant"
+        popclass:
+          type: integer
+
+    RenewRequest:
+      type: object
+      required:
+        - poptomoId
+        - playdata
+      properties:
+        poptomoId:
+          type: string
+        userName:
+          type: string
+        characterName:
+          type: string
+        comment:
+          type: string
+        isHidden:
+          type: boolean
+        normalCredit:
+          type: integer
+        battleCredit:
+          type: integer
+        localCredit:
+          type: integer
+        playdata:
+          type: array
+          items:
+            $ref: "#/components/schemas/RenewPlaydataItem"
+    RenewPlaydataItem:
+      type: object
+      required:
+        - genreName
+        - songName
+        - version
+        - difficultyCode
+        - score
+        - rankCode
+        - medalCode
+      properties:
+        genreName:
+          type: string
+        songName:
+          type: string
+        version:
+          type: integer
+        difficultyCode:
+          type: integer
+        isUpper:
+          type: boolean
+        score:
+          type: integer
+        rankCode:
+          type: integer
+          description: 크롤링 원천에서 얻은 랭크 코드
+        medalCode:
+          type: integer
+          description: 크롤링 원천에서 얻은 메달 코드
+    RenewResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                matchedChartCount:
+                  type: integer
+                updatedPlaydataCount:
+                  type: integer
+                skippedCount:
+                  type: integer
+
+    PageInfo:
+      type: object
+      properties:
+        page:
+          type: integer
+        size:
+          type: integer
+        totalItems:
+          type: integer
+        totalPages:
+          type: integer

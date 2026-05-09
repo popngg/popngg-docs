@@ -336,7 +336,19 @@ MVP에서는 상수 테이블 없이 코드 상수로 시작합니다.
 
 ## DDL 초안
 
-MySQL 기준 초안입니다. 실제 Flyway/Liquibase 도입 여부는 별도 결정합니다.
+MySQL 기준 초안입니다. 실제 구현에서는 Flyway `src/main/resources/db/migration/V*.sql` 파일로 나눠 관리합니다.
+
+권장 분할:
+
+```text
+V1__init_users.sql
+V2__create_songs_and_charts.sql
+V3__create_playdata.sql
+V4__create_logs.sql
+V5__create_password_reset_tokens.sql
+```
+
+운영에 적용된 Flyway `V` 파일은 수정하지 않고, 변경이 필요하면 새 버전 파일을 추가합니다.
 
 ```sql
 CREATE TABLE users (
