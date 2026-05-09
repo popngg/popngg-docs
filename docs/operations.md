@@ -90,10 +90,11 @@ src/main/resources/db/migration/
 - 한 번 운영에 적용된 `V*.sql`은 수정하지 않습니다.
 - 새 변경은 새 버전 파일로 추가합니다.
 - 스키마 변경과 대량 데이터 이전은 분리합니다.
+- 이번 리팩토링처럼 DB 구조가 크게 바뀌는 경우 Flyway 파일은 작은 테이블 단위보다 큰 baseline 세션 단위로 묶습니다.
 - `flyway_schema_history`를 운영 DB에서 확인할 수 있어야 합니다.
 - migration 실패 시 자동 재시도보다 원인 확인 후 수동 조치를 우선합니다.
 
-MVP에서는 Spring Boot 시작 시 Flyway 자동 실행을 허용할 수 있습니다. 다만 운영 데이터가 커지면 Jenkins에서 migration container를 별도 실행하는 방식으로 분리합니다.
+MVP에서는 Spring Boot 시작 시 Flyway 자동 실행을 허용할 수 있습니다. 다만 이번처럼 구조 변화가 큰 전환이나 운영 데이터가 큰 경우에는 Jenkins에서 migration container를 별도 실행하는 방식으로 분리합니다.
 
 ## 모니터링
 

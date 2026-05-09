@@ -147,6 +147,29 @@
   margin-bottom: 0;
 }
 
+.md-typeset .mermaid,
+.md-typeset pre.mermaid {
+  width: 100%;
+  margin: 1rem 0 1.6rem;
+  padding: 1rem;
+  overflow: auto;
+  border: 1px solid var(--popngg-border);
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.md-typeset .mermaid svg {
+  display: block;
+  width: min(1280px, 100%) !important;
+  max-width: none !important;
+  height: auto !important;
+  margin: 0 auto;
+}
+
+.md-typeset .mermaid text {
+  font-size: 15px !important;
+}
+
 @media screen and (min-width: 76.25em) {
   .md-sidebar--primary {
     width: 13.5rem;

@@ -1,6 +1,6 @@
-# 기존 DB 구조 추정
+# 기존 DB 구조
 
-이 문서는 이전 백엔드 저장소의 `domain`, `repository`, `service`, `dto` 코드를 읽고 유추한 기존 DB 구조입니다.
+이 문서는 이전 백엔드 저장소의 `domain`, `repository`, `service`, `dto` 코드를 읽고 정리한 기존 DB 구조입니다.
 
 참고한 주요 파일:
 
@@ -31,7 +31,7 @@
 
 `Chart` 엔티티는 `chart` 테이블에 매핑됩니다.
 
-| 컬럼 | 타입 추정 | nullable 추정 | 설명 |
+| 컬럼 | 타입 | nullable | 설명 |
 | --- | --- | --- | --- |
 | `chart_id` | BIGINT | NOT NULL | PK, auto increment |
 | `song_hash` | VARCHAR | NOT NULL | 곡 식별자. 기존 API 외부 식별자 |
@@ -73,7 +73,7 @@ MD5(genreName + songName + version + optionalUpperMarker)
 
 `User` 엔티티는 `"user"` 테이블에 매핑됩니다. SQL 예약어 회피를 위해 quote를 사용합니다.
 
-| 컬럼 | 타입 추정 | nullable 추정 | 설명 |
+| 컬럼 | 타입 | nullable | 설명 |
 | --- | --- | --- | --- |
 | `user_id` | BIGINT | NOT NULL | PK, auto increment |
 | `user_name` | VARCHAR | NOT NULL | 유저명 |
@@ -102,7 +102,7 @@ MD5(genreName + songName + version + optionalUpperMarker)
 
 `Playdata` 엔티티는 `playdata` 테이블에 매핑됩니다.
 
-| 컬럼 | 타입 추정 | nullable 추정 | 설명 |
+| 컬럼 | 타입 | nullable | 설명 |
 | --- | --- | --- | --- |
 | `playdata_id` | BIGINT | NOT NULL | PK, auto increment |
 | `user_id` | BIGINT | NOT NULL | 유저 참조 |
@@ -143,7 +143,7 @@ user.popclass = floor(sum(top50PlaydataPopclass) / 50)
 
 `History` 엔티티는 `history` 테이블에 매핑됩니다.
 
-| 컬럼 | 타입 추정 | nullable 추정 | 설명 |
+| 컬럼 | 타입 | nullable | 설명 |
 | --- | --- | --- | --- |
 | `history_id` | BIGINT | NOT NULL | PK, auto increment |
 | `user_id` | BIGINT | NOT NULL | 유저 참조 |
@@ -169,7 +169,7 @@ user.popclass = floor(sum(top50PlaydataPopclass) / 50)
 
 `RenewLog` 엔티티는 `renew_log` 테이블에 매핑됩니다.
 
-| 컬럼 | 타입 추정 | nullable 추정 | 설명 |
+| 컬럼 | 타입 | nullable | 설명 |
 | --- | --- | --- | --- |
 | `renew_id` | BIGINT | NOT NULL | PK, auto increment |
 | `created_at` | DATETIME | NULL | 생성일 |
@@ -184,7 +184,7 @@ user.popclass = floor(sum(top50PlaydataPopclass) / 50)
 
 `LoginLog` 엔티티는 `login_log` 테이블에 매핑됩니다.
 
-| 컬럼 | 타입 추정 | nullable 추정 | 설명 |
+| 컬럼 | 타입 | nullable | 설명 |
 | --- | --- | --- | --- |
 | `login_id` | BIGINT | NOT NULL | PK, auto increment |
 | `created_at` | DATETIME | NULL | 생성일 |

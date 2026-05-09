@@ -36,7 +36,11 @@ markdown_extensions:
   - md_in_html
   - pymdownx.blocks.html
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_div_format
   - pymdownx.tasklist:
       custom_checkbox: true
   - tables
@@ -44,8 +48,18 @@ markdown_extensions:
 extra_css:
   - assets/stylesheets/extra.css
 
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - assets/javascripts/mermaid-init.js
+
 nav:
   - 홈: index.md
+  - 회의해야 할 것:
+      - 개요: meetings/index.md
+      - 데이터 모델링: meetings/data-modeling.md
+      - songhash 생성 규칙: meetings/songhash.md
+      - Upper 모델링: meetings/upper-modeling.md
+      - LONG POP ON/OFF: meetings/long-pop.md
   - 기획:
       - 개요: planning/index.md
       - 프로젝트 개요: planning/overview.md
@@ -55,7 +69,7 @@ nav:
   - 설계:
       - 개요: design/index.md
       - 아키텍처: architecture.md
-      - 기존 DB 구조 추정: legacy-db-inference.md
+      - 기존 DB 구조: legacy-db-inference.md
       - MVP DB 설계 초안: mvp-db-design.md
       - 데이터 모델링: data-modeling.md
       - 마이그레이션 계획: migration-plan.md

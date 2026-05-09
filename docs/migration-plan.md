@@ -14,6 +14,28 @@
 - 운영 DB에 적용된 Flyway `V` 파일은 수정하지 않습니다.
 - 변경이 필요하면 새 버전 파일을 추가합니다.
 - destructive migration은 백업, 리허설, 수동 승인 후 수행합니다.
+- 이번 리팩토링은 DB 구조 변화가 크므로 마이그레이션을 작은 테이블 단위가 아니라 큰 세션 단위로 관리합니다.
+- 각 세션은 목표, 입력 데이터, 산출물, 검증 SQL, 롤백/중단 기준을 함께 가집니다.
+
+## 마이그레이션 세션 전략
+
+이번 마이그레이션은 다음처럼 큰 세션으로 나눕니다.
+
+| 세션 | 목적 | 실행 방식 | 주요 산출물 |
+| --- | --- | --- | --- |
+| Session 1. Schema Baseline | 신규 스키마와 보조 테이블 생성 | Flyway | 신규 테이블, 인덱스, seed 상수 |
+| Session 2. Identity Mapping | song/chart/user/playdata 매핑 기준 생성 | migration job/script | old/new id mapping, songhash mapping, 실패 row |
+| Session 3. Data Transform | 실제 데이터 변환 및 적재 | migration job/script | users, songs, charts, playdata, history 적재 결과 |
+| Session 4. Verification | row count, unique, 정합성 검증 | SQL/script | 검증 리포트, diff 리포트 |
+| Session 5. Cutover | 애플리케이션 라우팅 전환과 최종 싱크 | Jenkins/manual approval | 전환 로그, smoke test 결과 |
+| Session 6. Stabilization | 전환 후 보정과 관찰 | 운영 job/query | 오류 row 보정, 모니터링 결과 |
+
+세션을 크게 두는 이유:
+
+- `chart -> songs/charts` 분리, `playdata` 버전 베스트 분리, 비밀번호 재해싱처럼 서로 연결된 변경이 많습니다.
+- 작은 Flyway 파일로만 쪼개면 “어떤 단위가 검증 완료되었는지” 추적하기 어렵습니다.
+- 운영 전환 시에는 파일 개수보다 세션별 성공/중단 기준이 더 중요합니다.
+- 데이터 변환은 재실행 가능성과 실패 row 추적이 필요하므로 schema migration과 같은 단위로 묶지 않습니다.
 
 ## Flyway 파일 구조
 
@@ -21,14 +43,30 @@
 
 ```text
 src/main/resources/db/migration/
-  V1__init_users.sql
-  V2__create_songs_and_charts.sql
-  V3__create_playdata.sql
-  V4__create_logs.sql
-  V5__create_password_reset_tokens.sql
+  V1__baseline_account_and_security.sql
+  V2__baseline_music_catalog.sql
+  V3__baseline_playdata_and_logs.sql
+  V4__baseline_support_tables.sql
+  V5__seed_constants.sql
 ```
 
-초기 MVP에서는 테이블 단위로 너무 잘게 쪼개기보다, 리뷰 가능한 크기로 나눕니다.
+초기 MVP에서는 테이블 하나당 파일 하나로 너무 잘게 쪼개지 않습니다. 대신 리뷰 가능한 큰 세션 단위로 묶습니다.
+
+권장 묶음:
+
+| Flyway 파일 | 포함 |
+| --- | --- |
+| `V1__baseline_account_and_security.sql` | `users`, `password_reset_tokens`, 인증/계정 관련 인덱스 |
+| `V2__baseline_music_catalog.sql` | `songs`, `charts`, 곡/채보 인덱스 |
+| `V3__baseline_playdata_and_logs.sql` | `playdata`, `playdata_history`, `renew_logs`, `login_logs` |
+| `V4__baseline_support_tables.sql` | mapping/검증 보조 테이블이 DB에 필요할 경우 |
+| `V5__seed_constants.sql` | rank/medal/difficulty seed를 DB로 둘 경우. MVP에서 코드 상수면 생략 가능 |
+
+주의:
+
+- Flyway 파일은 schema baseline을 만드는 데 집중합니다.
+- 기존 운영 데이터 변환 SQL을 Flyway `V*.sql`에 직접 넣지 않습니다.
+- 대량 데이터 변환은 재실행 가능한 job/script로 분리하고, 세션 단위 로그를 남깁니다.
 
 ## 단계
 
@@ -43,6 +81,7 @@ src/main/resources/db/migration/
 ### 2. Flyway 스키마 생성
 
 - 신규 테이블 생성 SQL을 Flyway `V` 파일로 작성합니다.
+- 테이블 단위보다 큰 baseline 세션 단위로 파일을 구성합니다.
 - 기존 테이블은 즉시 삭제하지 않습니다.
 - 운영 배포 전 로컬/스테이징에서 `flyway_schema_history`를 확인합니다.
 - 애플리케이션 시작 시 Flyway migration이 자동 실행되게 하되, 운영 배포에서는 Jenkins 단계에서 상태를 먼저 확인합니다.
@@ -50,12 +89,40 @@ src/main/resources/db/migration/
 ### 3. 데이터 이전 준비
 
 - 기존 `chart`에서 `songs`와 `charts`로 분리하는 스크립트 작성
+- `songs.version`은 원곡 또는 곡 그룹의 최초 수록 버전으로 적재하고, Upper처럼 나중에 추가된 채보의 버전은 `charts.chart_version`으로 분리해 적재
 - 기존 `playdata.chart_id`를 신규 `charts.chart_id`로 매핑하는 테이블 또는 파일 작성
+- 기존 `playdata`를 28버전 기록으로 변환하는 스크립트 작성
+- `playdata.best_type`, `playdata.target_version`, `playdata.score_version` 적재 정책 반영
+- 기존 playdata를 `ALL_TIME_BEST`로 적재한 뒤 `users.potential_popclass`를 계산하는 스크립트 작성
+- 기존 credit 3종(`normal/battle/local`)과 신규 High☆Cheers credit 4종(`NORMAL/EXTRA/TIME PLAY 10분/TIME PLAY 16분`)의 매핑 정책 확정
 - 기존 유저 비밀번호를 salt 정책에 맞춰 재해싱
 - old/new songhash 매핑 테이블 또는 산출물 생성
 - 실패 row 리포트 형식 정의
 
 대량 데이터 이전은 Flyway에 넣지 않는 것을 권장합니다. 데이터 양, 실행 시간, 실패 복구가 스키마 migration보다 훨씬 민감하기 때문입니다.
+
+### 3-1. 세션별 실행 단위
+
+데이터 변환 job은 내부적으로 작은 step을 가질 수 있지만, 운영 관리는 큰 세션 단위로 합니다.
+
+| 세션 | Step 후보 |
+| --- | --- |
+| Identity Mapping | song dedupe, chart mapping, old/new songhash mapping, user mapping, Upper chart version mapping |
+| Data Transform | users 이전, password 재해싱, songs/charts 적재, `songs.version`/`charts.chart_version` 분리, playdata 적재, history 적재, logs 이전 |
+| Playdata Transform | 기존 점수 `score_version = 28`, `ALL_TIME_BEST` 생성, 필요 시 28버전 `VERSION_BEST` 복제 |
+| Popclass Rebuild | `legacy_popclass` 보존, `potential_popclass` 계산, 필요 시 `display_popclass` 초기화 |
+| Verification | row count 비교, orphan check, unique violation check, popclass 재계산 diff |
+
+각 세션은 다음 값을 로그로 남깁니다.
+
+- 시작/종료 시각
+- 입력 row 수
+- 성공 row 수
+- 실패 row 수
+- skip row 수
+- 실패 사유별 count
+- 산출 mapping 파일 또는 테이블 위치
+- 재실행 가능 여부
 
 ### 4. 검증
 
@@ -68,6 +135,24 @@ src/main/resources/db/migration/
 - songhash 후보별 중복 여부 확인
 - 신규 unique 제약 위반 여부 확인
 - 비밀번호 복구 이메일 nullable/unique 동작 확인
+- 기존 `playdata`가 `score_version = 28`로 들어갔는지 확인
+- 현재 버전 `VERSION_BEST`와 `ALL_TIME_BEST` 스코프가 중복 없이 생성되는지 확인
+- `legacy_popclass`가 기존 `users.popclass`를 보존하는지 확인
+- `potential_popclass`가 `ALL_TIME_BEST` 기준으로 계산되었는지 확인
+- `display_popclass`가 현재 버전 `VERSION_BEST` 기준으로 계산되는지 확인
+- 신규 credit 4종이 의도한 값으로 적재되었는지 확인. 기존 `battle/local`이 임의로 잘못 매핑되지 않았는지 확인
+
+### 4-1. 팝클래스 재계산 검증
+
+마이그레이션 검증에는 유저별 팝클래스 3종 확인을 포함합니다.
+
+| 컬럼 | 검증 기준 |
+| --- | --- |
+| `legacy_popclass` | 기존 DB의 `user.popclass`와 동일해야 합니다. |
+| `potential_popclass` | 신규 `playdata`의 `ALL_TIME_BEST` 상위 50개 기준 계산값이어야 합니다. |
+| `display_popclass` | 현재 버전 `VERSION_BEST` 상위 50개 기준 계산값이어야 합니다. 전환 직후 현재 버전 기록이 없으면 0 또는 정책상 초기값을 사용합니다. |
+
+`potential_popclass`는 마이그레이션 완료 조건입니다. 기존 기록을 `ALL_TIME_BEST`로 적재했다면 반드시 한 번 계산해 저장해야 하며, 계산 실패 유저가 있으면 세션을 성공 처리하지 않습니다.
 
 ### 5. 애플리케이션 라우팅 스위치
 
@@ -99,8 +184,12 @@ checkout
 → build Docker image
 → push Docker image
 → backup DB
+→ Session 1. Flyway schema baseline
+→ Session 2. migration dry-run or precheck
 → deploy container
-→ Flyway migration
+→ Session 3. final data transform
+→ Session 4. verification
+→ Session 5. cutover
 → health check
 → smoke test
 ```
@@ -114,6 +203,8 @@ deploy migration container
 ```
 
 둘 중 MVP에서는 Spring Boot Flyway 자동 실행으로 시작할 수 있지만, 운영 데이터가 커지면 migration container 분리를 권장합니다.
+
+이번 리팩토링처럼 DB 구조가 크게 바뀌는 전환에서는 Spring Boot 자동 Flyway보다 Jenkins의 명시 단계 또는 migration container를 우선합니다. 애플리케이션 컨테이너 시작과 schema baseline 적용이 섞이면 실패 시 원인 분리가 어려워집니다.
 
 ## 비밀번호 마이그레이션 초안
 

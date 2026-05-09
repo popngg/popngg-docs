@@ -12,8 +12,8 @@
   </a>
   <a class="doc-card" href="../legacy-db-inference/">
     <span class="doc-card__eyebrow">Legacy</span>
-    <strong>기존 DB 구조 추정</strong>
-    <p>이전 백엔드 domain에서 유추한 기존 DB 구조입니다.</p>
+    <strong>기존 DB 구조</strong>
+    <p>이전 백엔드 domain 기준 기존 DB 구조입니다.</p>
   </a>
   <a class="doc-card" href="../mvp-db-design/">
     <span class="doc-card__eyebrow">Database</span>

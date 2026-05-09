@@ -948,9 +948,12 @@ components:
           nullable: true
         version:
           type: integer
+          description: 원곡 또는 곡 그룹의 최초 수록 버전입니다. Upper 채보 출시 버전은 각 chart의 chartVersion을 사용합니다.
         isUpper:
           type: boolean
           default: false
+          deprecated: true
+          description: MVP 초안 호환 필드입니다. 신규 구현에서는 charts[].isUpper를 우선 사용합니다.
         jacketUrl:
           type: string
           nullable: true
@@ -961,11 +964,19 @@ components:
             required:
               - difficulty
               - level
+              - chartVersion
             properties:
               difficulty:
                 type: integer
               level:
                 type: integer
+              chartVersion:
+                type: integer
+                description: 해당 채보가 등장한 게임 버전입니다. 같은 song이라도 Upper 채보는 원곡과 다를 수 있습니다.
+              isUpper:
+                type: boolean
+                default: false
+                description: 해당 채보가 Upper인지 여부입니다.
     CreateChartResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -1021,11 +1032,13 @@ components:
           nullable: true
         version:
           type: integer
+          description: 원곡 또는 곡 그룹의 최초 수록 버전입니다.
         jacketUrl:
           type: string
           nullable: true
         isUpper:
           type: boolean
+          description: 포함된 chart 중 Upper가 있는지 나타내는 요약 필드입니다.
         charts:
           type: array
           items:
@@ -1040,6 +1053,12 @@ components:
           $ref: "#/components/schemas/DifficultyConstant"
         level:
           type: integer
+        chartVersion:
+          type: integer
+          description: 해당 채보가 등장한 게임 버전입니다. Upper는 원곡 수록 버전과 다를 수 있습니다.
+        isUpper:
+          type: boolean
+          description: 해당 채보가 Upper인지 여부입니다.
         hasStrictJudgement:
           type: boolean
           description: 짠판정 여부
@@ -1070,14 +1089,33 @@ components:
           type: string
         userName:
           type: string
-        popclass:
+        displayPopclass:
           type: integer
+          description: 현재 서비스 표기용 팝클래스
+        potentialPopclass:
+          type: integer
+          description: 최고기록 기준 포텐셜 팝클래스
+        legacyPopclass:
+          type: integer
+          description: 28버전 이전 기준 팝클래스
         characterName:
           type: string
         comment:
           type: string
         isHidden:
           type: boolean
+        normalCredit:
+          type: integer
+          description: NORMAL credit
+        extraCredit:
+          type: integer
+          description: EXTRA credit
+        timePlay10Credit:
+          type: integer
+          description: TIME PLAY(10분) credit
+        timePlay16Credit:
+          type: integer
+          description: TIME PLAY(16분) credit
         profileImageUrl:
           type: string
           nullable: true
@@ -1153,10 +1191,20 @@ components:
           type: boolean
         normalCredit:
           type: integer
-        battleCredit:
+          description: NORMAL credit
+        extraCredit:
           type: integer
-        localCredit:
+          description: EXTRA credit
+        timePlay10Credit:
           type: integer
+          description: TIME PLAY(10분) credit
+        timePlay16Credit:
+          type: integer
+          description: TIME PLAY(16분) credit
+        sourceVersion:
+          type: integer
+          description: 크롤링 대상 게임 버전. 생략 시 서버의 현재 버전 정책을 사용합니다.
+          example: 29
         playdata:
           type: array
           items:
@@ -1182,6 +1230,10 @@ components:
           type: integer
         isUpper:
           type: boolean
+        scoreVersion:
+          type: integer
+          description: 점수가 나온 게임 버전. 크롤링 입력에서는 현재 버전으로 처리합니다.
+          example: 29
         score:
           type: integer
         rankCode:
@@ -1211,6 +1263,20 @@ components:
           $ref: "#/components/schemas/GroupedChart"
         chart:
           $ref: "#/components/schemas/ChartSummary"
+        bestType:
+          type: string
+          enum:
+            - VERSION_BEST
+            - ALL_TIME_BEST
+          description: 현재 버전 베스트인지 역대 베스트인지 구분합니다.
+        targetVersion:
+          type: integer
+          description: VERSION_BEST 대상 버전. ALL_TIME_BEST는 0입니다.
+          example: 29
+        scoreVersion:
+          type: integer
+          description: 해당 점수가 실제로 나온 게임 버전입니다.
+          example: 29
         score:
           type: integer
         rank:
@@ -1219,6 +1285,20 @@ components:
           $ref: "#/components/schemas/MedalConstant"
         popclass:
           type: integer
+        isDisplayPopclassTarget:
+          type: boolean
+          description: 현재 표기 팝클 산정 대상 여부입니다.
+        popclassBucket:
+          type: string
+          nullable: true
+          enum:
+            - CURRENT_VERSION
+            - OLD_VERSION
+          description: 현재 표기 팝클 산정 bucket입니다. 산정 대상이 아니면 null입니다.
+        popclassBucketRank:
+          type: integer
+          nullable: true
+          description: bucket 안에서의 순위입니다.
         updatedAt:
           type: string
           format: date-time
@@ -1246,7 +1326,11 @@ components:
               properties:
                 user:
                   $ref: "#/components/schemas/UserProfile"
-                popclass:
+                displayPopclass:
+                  type: integer
+                potentialPopclass:
+                  type: integer
+                legacyPopclass:
                   type: integer
                 toNext:
                   type: integer
@@ -1270,6 +1354,13 @@ components:
                   enum:
                     - rank
                     - medal
+                bestType:
+                  type: string
+                  enum:
+                    - VERSION_BEST
+                    - ALL_TIME_BEST
+                targetVersion:
+                  type: integer
                 levels:
                   type: array
                   items:
@@ -1318,8 +1409,28 @@ components:
           $ref: "#/components/schemas/RankConstant"
         medal:
           $ref: "#/components/schemas/MedalConstant"
+        bestType:
+          type: string
+          enum:
+            - VERSION_BEST
+            - ALL_TIME_BEST
+        targetVersion:
+          type: integer
+        scoreVersion:
+          type: integer
         popclass:
           type: integer
+        isDisplayPopclassTarget:
+          type: boolean
+        popclassBucket:
+          type: string
+          nullable: true
+          enum:
+            - CURRENT_VERSION
+            - OLD_VERSION
+        popclassBucketRank:
+          type: integer
+          nullable: true
     PlaydataHistoryResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -1331,6 +1442,15 @@ components:
                 type: object
                 properties:
                   score:
+                    type: integer
+                  bestType:
+                    type: string
+                    enum:
+                      - VERSION_BEST
+                      - ALL_TIME_BEST
+                  targetVersion:
+                    type: integer
+                  scoreVersion:
                     type: integer
                   rank:
                     $ref: "#/components/schemas/RankConstant"

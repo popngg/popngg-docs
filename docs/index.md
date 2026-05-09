@@ -13,6 +13,11 @@
     <strong>기획</strong>
     <p>프로젝트 목표, MVP 범위, High☆Cheers 게임 시스템 정책을 정리합니다.</p>
   </a>
+  <a class="doc-card" href="meetings/">
+    <span class="doc-card__eyebrow">Discussion</span>
+    <strong>회의해야 할 것</strong>
+    <p>아직 확정하지 않은 설계 쟁점과 회의에서 결정할 질문을 모읍니다.</p>
+  </a>
   <a class="doc-card" href="design/">
     <span class="doc-card__eyebrow">Design</span>
     <strong>설계</strong>

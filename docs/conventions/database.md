@@ -19,4 +19,4 @@
 - 운영에 적용된 `V*.sql`은 수정하지 않습니다.
 - 변경은 새 버전 파일로 추가합니다.
 - 대량 데이터 이전은 Flyway보다 별도 job/script를 사용합니다.
-
+- 구조 변경이 큰 마이그레이션은 테이블 단위로 과도하게 쪼개지 않고, schema baseline/data transform/cutover 같은 큰 세션 단위로 관리합니다.

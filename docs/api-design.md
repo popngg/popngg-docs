@@ -126,6 +126,48 @@ MVP에서는 로그 테이블과 Jenkins 로그로 충분하면 제외합니다.
 }
 ```
 
+## API DTO 설계
+
+API DTO는 HTTP 계층의 계약입니다. application command/query/result와 분리합니다.
+
+```text
+Controller
+  Request DTO
+    -> Command 또는 Query
+    -> UseCase
+    -> Result 또는 View
+  Response DTO
+```
+
+예:
+
+```text
+POST /auth/login
+  LoginRequest
+    -> LoginCommand
+    -> AuthenticateUserUseCase
+    -> LoginResult
+  LoginResponse
+```
+
+```text
+GET /chart/{songHash}
+  path songHash
+    -> FindGroupChartQuery
+    -> FindGroupChartUseCase
+    -> GroupChartView
+  GroupChartResponse
+```
+
+규칙:
+
+- `Request`/`Response`는 `popngg-api`에 둡니다.
+- `Command`/`Query`/`Result`/`View`는 `popngg-application`에 둡니다.
+- `Entity`는 `popngg-infra` 밖으로 내보내지 않습니다.
+- Controller는 request validation과 mapping만 담당합니다.
+- API response는 프론트 표시를 위해 label, sortOrder, displayName을 포함할 수 있습니다.
+- application result/view는 특정 HTTP status나 JSON 필드명에 묶이지 않게 설계합니다.
+
 ## GroupChart 응답
 
 `song`과 `chart`는 DB에서 분리하지만, API에서는 프론트가 곡 단위로 렌더링하기 쉽게 GroupChart를 제공합니다.
@@ -144,6 +186,8 @@ MVP에서는 로그 테이블과 Jenkins 로그로 충분하면 제외합니다.
       "chartId": 1,
       "difficulty": { "code": 4, "label": "EX", "shortLabel": "EX", "sortOrder": 4 },
       "level": 49,
+      "chartVersion": 29,
+      "isUpper": true,
       "hasStrictJudgement": false,
       "hasStrictGauge": true,
       "isDeleted": false
@@ -159,10 +203,38 @@ MVP에서는 로그 테이블과 Jenkins 로그로 충분하면 제외합니다.
 중요:
 
 - 입력에는 `score`, `rankCode`, `medalCode`가 함께 들어와야 합니다.
+- credit은 High☆Cheers 기준 4종 `normalCredit`, `extraCredit`, `timePlay10Credit`, `timePlay16Credit`로 받습니다.
+- 이전 API의 `battleCredit`, `localCredit`은 신규 API에서 사용하지 않습니다.
 - 서버는 score로 rank를 계산하지 않습니다.
-- 서버는 chart level, score, medal을 기반으로 popclass를 계산해 저장합니다.
+- 크롤링한 score는 무조건 현재 게임 버전에서 나온 점수로 저장합니다.
+- 서버는 현재 버전 `VERSION_BEST`와 `ALL_TIME_BEST`를 분리해 저장합니다.
+- 서버는 chart level, 현재 버전 score, medal을 기반으로 현재 버전 popclass를 계산해 저장합니다.
+- `ALL_TIME_BEST`가 변경되면 `potentialPopclass`를 반드시 재계산합니다.
+- 현재 버전 `VERSION_BEST`가 변경되면 `displayPopclass`를 반드시 재계산합니다.
+- 현재 버전 `VERSION_BEST`가 변경되면 서버는 `charts.chart_version` 기준으로 이번 버전 채보 20개, 구버전 채보 40개를 다시 선정해 playdata의 `popclassBucket` 마킹을 갱신합니다.
+- 크롤러는 `popclassBucket`을 보내지 않습니다. bucket은 서버 계산값입니다.
 - 매칭되지 않은 chart는 실패 row로 기록하거나 `skippedCount`로 반환합니다.
 - LONG POP ON/OFF 상태는 메달로 파악하되, score와 popclass 적용 방식은 실기 검증 전까지 서버가 임의 보정하지 않습니다.
+
+### 버전 베스트와 역대 베스트
+
+High☆Cheers부터 기존 점수가 초기화되고, 게임은 현재 버전 베스트와 역대 베스트를 나눠서 가집니다.
+
+API 응답은 프론트가 구분할 수 있도록 각 플레이데이터에 다음 필드를 포함하는 것을 권장합니다.
+
+| 필드 | 설명 |
+| --- | --- |
+| `bestType` | `VERSION_BEST`, `ALL_TIME_BEST` |
+| `targetVersion` | 버전 베스트 대상 버전. 역대 베스트는 `0` |
+| `scoreVersion` | 점수가 실제로 나온 게임 버전 |
+
+조회 API 기본값:
+
+- `/playdata/popclass/{poptomoId}`는 현재 버전 `VERSION_BEST` 기준으로 계산합니다.
+- `/playdata/count/{poptomoId}`는 query parameter로 `bestType`, `targetVersion`을 받을 수 있게 합니다. 기본값은 현재 버전 `VERSION_BEST`입니다.
+- `/playdata/all/{poptomoId}`는 현재 버전 베스트와 역대 베스트를 모두 내려주거나, query parameter로 스코프를 선택할 수 있게 합니다.
+- 곡별 랭킹은 현재 버전 랭킹과 역대 랭킹을 분리할 수 있어야 합니다.
+- `/playdata/popclass/{poptomoId}`는 서버가 미리 마킹한 `isDisplayPopclassTarget = true` row를 우선 조회합니다.
 
 ## 인증/권한
 

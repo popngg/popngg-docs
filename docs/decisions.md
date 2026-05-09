@@ -13,8 +13,9 @@
 
 - 상태: Proposed
 - 결정: 곡 메타데이터는 `song`, 난이도별 채보 정보는 `chart`에 둔다.
-- 이유: 장르명, 곡명, 자켓, 버전과 난이도/레벨/판정 정보를 분리하기 위함.
+- 이유: 장르명, 곡명, 자켓 같은 곡 단위 정보와 난이도/레벨/판정/채보 등장 버전 정보를 분리하기 위함.
 - 영향: 기존 `chart.song_hash` 기반 조회는 `song -> chart` join으로 바뀐다.
+- 영향: `songs.version`은 원곡 또는 곡 그룹의 최초 수록 버전으로 두고, Upper처럼 나중에 추가될 수 있는 채보의 등장 버전은 `charts.chart_version`에 저장한다.
 
 ## ADR-003: songhash 생성 규칙
 
@@ -62,3 +63,22 @@
 - 이유: High☆Cheers 랭크는 clear 여부에 따라 달라질 수 있어 점수만으로 정확히 판단할 수 없다.
 - 영향: 갱신 코드와 수동 업로드 API는 rank를 필수 데이터로 다뤄야 한다.
 - 영향: `rank_policy`의 점수 구간은 표시/정렬/검증용 참고값이며, 핵심 판정 로직이 아니다.
+
+## ADR-009: playdata는 버전 베스트와 역대 베스트를 분리한다
+
+- 상태: Accepted
+- 결정: `playdata`는 `best_type`, `target_version`, `score_version`을 저장해 현재 버전 베스트와 역대 베스트를 분리한다.
+- 이유: High☆Cheers부터 기존 점수가 초기화되고, 게임이 현재 버전 베스트와 역대 베스트를 나눠서 관리하기 때문이다.
+- 영향: 기존 DB의 플레이데이터는 28버전 기록으로 마이그레이션한다.
+- 영향: 앞으로 크롤링한 점수는 현재 버전에서 나온 기록으로 저장한다.
+- 영향: 유저 팝클은 현재 버전 `VERSION_BEST` 기준으로 계산한다.
+- 열린 질문: 기존 playdata를 28버전 `VERSION_BEST` row로도 복제할지, MVP에서는 `ALL_TIME_BEST`만 보존할지 결정해야 한다.
+
+## ADR-010: 팝클 산정 대상 bucket은 서버가 계산해 playdata에 마킹한다
+
+- 상태: Accepted
+- 결정: 크롤러는 `popclass_bucket`을 보내지 않는다. 서버가 playdata 갱신 후 `charts.chart_version` 기준으로 이번 버전 채보 20개, 구버전 채보 40개를 선정해 `playdata`에 산정 대상과 bucket 순위를 마킹한다.
+- 이유: 팝클 산정 대상 여부는 단일 row 원천값이 아니라 유저의 전체 playdata 정렬 결과로 결정되기 때문이다.
+- 이유: 같은 song이라도 Upper가 나온 버전은 다를 수 있으므로, `songs.version`으로 신곡/구곡을 판단하면 bucket이 틀릴 수 있다.
+- 영향: `/playdata/popclass/{poptomoId}`는 매번 전체 정렬하지 않고 마킹된 row를 우선 조회할 수 있다.
+- 영향: playdata 갱신 job은 upsert 이후 bucket 마킹 재계산을 필수 후속 step으로 가져야 한다.
