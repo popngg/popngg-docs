@@ -8,7 +8,8 @@ theme:
   language: ko
   features:
     - navigation.sections
-    - navigation.indexes
+    - navigation.expand
+    - navigation.path
     - navigation.top
     - content.code.copy
 
@@ -31,12 +32,12 @@ markdown_extensions:
 nav:
   - 홈: index.md
   - 기획:
-      - planning/index.md
+      - 개요: planning/index.md
       - 프로젝트 개요: planning/overview.md
       - MVP 범위: planning/mvp-scope.md
       - 게임 시스템: game-system.md
   - 설계:
-      - design/index.md
+      - 개요: design/index.md
       - 아키텍처: architecture.md
       - 기존 DB 구조 추정: legacy-db-inference.md
       - MVP DB 설계 초안: mvp-db-design.md
@@ -44,11 +45,11 @@ nav:
       - 마이그레이션 계획: migration-plan.md
       - 의사결정 기록: decisions.md
   - API:
-      - api/index.md
+      - 개요: api/index.md
       - API 설계: api-design.md
       - API Reference: api-reference.md
   - 컨벤션:
-      - conventions/index.md
+      - 개요: conventions/index.md
       - 문서 컨벤션: conventions/docs.md
       - 코드 컨벤션: conventions/code.md
       - DB 컨벤션: conventions/database.md

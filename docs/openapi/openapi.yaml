@@ -5,44 +5,67 @@ info:
   description: |
     popn.gg High☆Cheers 리팩토링 MVP API 초안입니다.
 
+    이 문서는 구현 전 API 계약을 잡기 위한 초안입니다.
+
     주요 정책:
+      - 모든 경로는 `/api/v1` prefix 아래에 둡니다.
       - 랭크는 서버가 점수로 계산하지 않고 갱신 원천 데이터에서 수집한 값을 저장합니다.
-      - `song`과 `chart`는 분리합니다.
-      - API 응답은 프론트가 표시하기 쉬운 label과 code를 함께 제공합니다.
-      - DB foreign key constraint는 만들지 않지만 애플리케이션에서 참조 정합성을 검증합니다.
+      - `song`과 `chart`는 분리하지만, 프론트가 쓰기 쉽게 GroupChart 응답을 제공합니다.
+      - API 응답은 code와 label을 함께 제공해 프론트 표시 가공을 줄입니다.
+      - 비밀번호, reset token 원문, JWT secret은 응답/로그에 노출하지 않습니다.
 servers:
-  - url: https://api.popn.gg
+  - url: https://api.popn.gg/api/v1
     description: Production
-  - url: http://localhost:8080
+  - url: http://localhost:8080/api/v1
     description: Local development
 tags:
+  - name: Health
+    description: 서버 상태 확인
   - name: Auth
-    description: 로그인과 비밀번호 복구
+    description: 로그인, 인증 확인, 비밀번호 복구
   - name: Constants
     description: 랭크, 메달, 난이도 등 프론트 표시 상수
-  - name: Songs
-    description: 곡과 채보 조회
+  - name: Chart
+    description: 곡과 채보 조회/업로드
+  - name: User
+    description: 유저 프로필, 비밀번호, 유저 랭킹
   - name: Playdata
-    description: 유저 플레이데이터와 팝클
-  - name: Ranking
-    description: 곡별 랭킹
-  - name: Renew
-    description: 갱신/크롤링 데이터 반영
+    description: 플레이데이터 갱신, 조회, 집계
+  - name: Image
+    description: 자켓과 프로필 이미지 업로드/조회
+  - name: Admin
+    description: 관리자 전용 API 후보
 x-tagGroups:
-  - name: Public API
+  - name: Public
     tags:
+      - Health
       - Constants
-      - Songs
+      - Chart
+      - User
       - Playdata
-      - Ranking
+      - Image
   - name: Account
     tags:
       - Auth
-  - name: Ingestion
+  - name: Admin
     tags:
-      - Renew
+      - Admin
 paths:
-  /api/v1/auth/login:
+  /:
+    get:
+      tags:
+        - Health
+      summary: Healthcheck
+      operationId: healthcheck
+      responses:
+        "200":
+          description: 서버 정상
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /auth/login:
     post:
       tags:
         - Auth
@@ -54,11 +77,6 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/LoginRequest"
-            examples:
-              default:
-                value:
-                  poptomoId: "123456789"
-                  password: "user-password"
       responses:
         "200":
           description: 로그인 성공
@@ -69,7 +87,30 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /api/v1/auth/password-reset/request:
+  /auth/check:
+    get:
+      tags:
+        - Auth
+      summary: 인증/관리자 권한 확인
+      description: |
+        관리자 화면 또는 업로드 화면 진입 전에 토큰과 권한을 확인하는 API 후보입니다.
+        프론트에서 JWT claim만으로 충분하면 MVP에서 제외할 수 있습니다.
+      operationId: checkAuth
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 인증 상태
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthCheckResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /auth/password-reset/request:
     post:
       tags:
         - Auth
@@ -92,12 +133,11 @@ paths:
         "429":
           $ref: "#/components/responses/TooManyRequests"
 
-  /api/v1/auth/password-reset/confirm:
+  /auth/password-reset/confirm:
     post:
       tags:
         - Auth
       summary: 비밀번호 재설정
-      description: reset token 원문은 DB에 저장하지 않고, 서버에서는 해시값으로 검증합니다.
       operationId: confirmPasswordReset
       requestBody:
         required: true
@@ -115,7 +155,7 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
-  /api/v1/constants:
+  /constants:
     get:
       tags:
         - Constants
@@ -129,82 +169,289 @@ paths:
               schema:
                 $ref: "#/components/schemas/ConstantsResponse"
 
-  /api/v1/songs:
+  /chart:
+    post:
+      tags:
+        - Chart
+      summary: 차트 업로드
+      description: 관리자용 곡/채보 등록 API입니다.
+      operationId: createChart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateChartRequest"
+      responses:
+        "201":
+          description: 차트 등록 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateChartResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /chart/all:
     get:
       tags:
-        - Songs
-      summary: 곡 목록 조회
-      operationId: listSongs
+        - Chart
+      summary: 모든 GroupChart 정보
+      operationId: getAllGroupedCharts
       parameters:
         - $ref: "#/components/parameters/Keyword"
         - $ref: "#/components/parameters/Version"
         - $ref: "#/components/parameters/Level"
-        - $ref: "#/components/parameters/DifficultyCode"
-        - name: page
-          in: query
-          schema:
-            type: integer
-            minimum: 0
-            default: 0
-        - name: size
+        - $ref: "#/components/parameters/DifficultyCodeQuery"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: 곡 단위 그룹 차트 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupedChartListResponse"
+
+  /chart/recent:
+    get:
+      tags:
+        - Chart
+      summary: 최신 차트
+      description: 메인페이지 최신 추가 곡 목록입니다.
+      operationId: getRecentCharts
+      parameters:
+        - name: limit
           in: query
           schema:
             type: integer
             minimum: 1
-            maximum: 100
-            default: 50
+            maximum: 50
+            default: 10
       responses:
         "200":
-          description: 곡 목록
+          description: 최신 그룹 차트 목록
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SongListResponse"
+                $ref: "#/components/schemas/GroupedChartListResponse"
 
-  /api/v1/songs/{songHash}:
+  /chart/{songHash}:
     get:
       tags:
-        - Songs
-      summary: 곡 상세 조회
-      operationId: getSong
+        - Chart
+      summary: 특정 노래 GroupChart 정보
+      operationId: getGroupedChart
       parameters:
         - $ref: "#/components/parameters/SongHash"
       responses:
         "200":
-          description: 곡 상세
+          description: 곡 단위 그룹 차트 상세
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/SongResponse"
+                $ref: "#/components/schemas/GroupedChartResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/v1/users/{poptomoId}/playdata:
+  /chart/{songHash}/{difficulty}:
     get:
       tags:
-        - Playdata
-      summary: 유저 전체 플레이데이터 조회
-      operationId: getUserPlaydata
+        - Chart
+      summary: 특정 채보 정보
+      operationId: getChart
+      parameters:
+        - $ref: "#/components/parameters/SongHash"
+        - $ref: "#/components/parameters/DifficultyPath"
+      responses:
+        "200":
+          description: 채보 상세
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChartResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /user/{poptomoId}:
+    get:
+      tags:
+        - User
+      summary: 유저 프로필 페이지 정보
+      operationId: getUserProfile
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
       responses:
         "200":
-          description: 유저 플레이데이터
+          description: 유저 프로필
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserPlaydataResponse"
+                $ref: "#/components/schemas/UserProfileResponse"
         "403":
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+    patch:
+      tags:
+        - User
+      summary: 유저 프로필 편집
+      operationId: updateUserProfile
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PoptomoId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserProfileRequest"
+      responses:
+        "200":
+          description: 프로필 수정 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
 
-  /api/v1/users/{poptomoId}/popclass:
+  /user/password:
+    patch:
+      tags:
+        - User
+      summary: 비밀번호 변경
+      operationId: updatePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePasswordRequest"
+      responses:
+        "200":
+          description: 비밀번호 변경 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /user/email:
+    patch:
+      tags:
+        - User
+      summary: 비밀번호 복구용 이메일 등록/변경
+      operationId: updateEmail
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEmailRequest"
+      responses:
+        "200":
+          description: 이메일 변경 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /user/ranking:
+    get:
+      tags:
+        - User
+      summary: 유저 목록 페이지
+      operationId: getUserRanking
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: 유저 팝클 랭킹 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserRankingResponse"
+
+  /playdata:
+    post:
+      tags:
+        - Playdata
+      summary: 플레이데이터 갱신 및 등록
+      description: 기존 renew 역할입니다. 크롤링 원천에서 얻은 score, rankCode, medalCode를 함께 제출합니다.
+      operationId: upsertPlaydata
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaydataUpsertRequest"
+      responses:
+        "200":
+          description: 갱신 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaydataUpsertResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /playdata/count/{poptomoId}:
     get:
       tags:
         - Playdata
-      summary: 유저 팝클 테이블 조회
-      operationId: getUserPopclass
+      summary: 레벨/난이도별 메달 또는 랭크 개수
+      operationId: countPlaydata
+      parameters:
+        - $ref: "#/components/parameters/PoptomoId"
+        - name: groupBy
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - rank
+              - medal
+        - name: difficulty
+          in: query
+          schema:
+            type: integer
+            enum:
+              - 1
+              - 2
+              - 3
+              - 4
+      responses:
+        "200":
+          description: 레벨별 집계
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaydataCountResponse"
+
+  /playdata/popclass/{poptomoId}:
+    get:
+      tags:
+        - Playdata
+      summary: 유저 팝클표
+      operationId: getPopclassTable
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
       responses:
@@ -214,62 +461,161 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PopclassResponse"
-        "403":
-          $ref: "#/components/responses/Forbidden"
 
-  /api/v1/charts/{songHash}/{difficultyCode}/ranking:
+  /playdata/all/{poptomoId}:
     get:
       tags:
-        - Ranking
-      summary: 채보별 랭킹 조회
-      operationId: getChartRanking
+        - Playdata
+      summary: 유저의 전체 데이터
+      operationId: getAllPlaydata
       parameters:
-        - $ref: "#/components/parameters/SongHash"
-        - $ref: "#/components/parameters/DifficultyCodePath"
-        - name: order
-          in: query
-          schema:
-            type: string
-            enum:
-              - score
-              - medal
-            default: score
+        - $ref: "#/components/parameters/PoptomoId"
       responses:
         "200":
-          description: 채보별 랭킹
+          description: 유저 전체 플레이데이터
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ChartRankingResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
+                $ref: "#/components/schemas/UserPlaydataResponse"
 
-  /api/v1/renew:
+  /playdata/main:
+    get:
+      tags:
+        - Playdata
+      summary: 특정 차트 페이지 정보 모두 불러오기
+      description: 차트 상세 페이지에서 필요한 차트 정보, 랭킹, 내 기록, 히스토리 요약을 한 번에 내려주는 aggregation API 후보입니다.
+      operationId: getChartMainPlaydata
+      parameters:
+        - $ref: "#/components/parameters/SongHashQuery"
+        - $ref: "#/components/parameters/DifficultyCodeQueryRequired"
+        - name: poptomoId
+          in: query
+          schema:
+            type: string
+          description: 로그인하지 않은 경우 생략 가능
+      responses:
+        "200":
+          description: 차트 상세 페이지 데이터
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChartMainResponse"
+
+  /playdata/history/{poptomoId}/{songHash}:
+    get:
+      tags:
+        - Playdata
+      summary: 유저의 특정 곡 히스토리
+      operationId: getPlaydataHistory
+      parameters:
+        - $ref: "#/components/parameters/PoptomoId"
+        - $ref: "#/components/parameters/SongHash"
+        - name: difficulty
+          in: query
+          schema:
+            type: integer
+            enum:
+              - 1
+              - 2
+              - 3
+              - 4
+      responses:
+        "200":
+          description: 플레이데이터 히스토리
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaydataHistoryResponse"
+
+  /playdata/versus:
+    get:
+      tags:
+        - Playdata
+      summary: 여러 유저 플레이데이터 비교
+      operationId: comparePlaydata
+      parameters:
+        - name: poptomoIds
+          in: query
+          required: true
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+          example: "123456789,987654321"
+      responses:
+        "200":
+          description: 유저 비교 데이터
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VersusPlaydataResponse"
+
+  /image/jacket/{songHash}:
     post:
       tags:
-        - Renew
-      summary: 플레이데이터 갱신
-      description: 크롤링 원천에서 얻은 score, rankCode, medalCode를 함께 제출합니다.
-      operationId: renewPlaydata
+        - Image
+      summary: 자켓 업로드
+      operationId: uploadJacket
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SongHash"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/ImageUploadRequest"
+      responses:
+        "200":
+          description: 업로드 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImageUploadResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /image/user:
+    post:
+      tags:
+        - Image
+      summary: 프로필 이미지 업로드
+      operationId: uploadUserImage
       security:
         - bearerAuth: []
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
-              $ref: "#/components/schemas/RenewRequest"
+              $ref: "#/components/schemas/ImageUploadRequest"
       responses:
         "200":
-          description: 갱신 성공
+          description: 업로드 성공
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RenewResponse"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
+                $ref: "#/components/schemas/ImageUploadResponse"
+
+  /admin/migrations/status:
+    get:
+      tags:
+        - Admin
+      summary: Flyway migration 상태 확인
+      description: 운영/관리자 도구용 후보 API입니다. Jenkins와 DB 직접 확인으로 충분하면 MVP에서 제외할 수 있습니다.
+      operationId: getMigrationStatus
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 마이그레이션 상태
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MigrationStatusResponse"
 
 components:
   securitySchemes:
@@ -288,6 +634,14 @@ components:
         minLength: 32
         maxLength: 32
       example: "2302440c63cbe103703f3de51ac205da"
+    SongHashQuery:
+      name: songHash
+      in: query
+      required: true
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 32
     PoptomoId:
       name: poptomoId
       in: path
@@ -295,6 +649,39 @@ components:
       schema:
         type: string
       example: "123456789"
+    DifficultyPath:
+      name: difficulty
+      in: path
+      required: true
+      schema:
+        type: integer
+        enum:
+          - 1
+          - 2
+          - 3
+          - 4
+      description: 1 LIGHT, 2 NORMAL, 3 HYPER, 4 EX
+    DifficultyCodeQuery:
+      name: difficulty
+      in: query
+      schema:
+        type: integer
+        enum:
+          - 1
+          - 2
+          - 3
+          - 4
+    DifficultyCodeQueryRequired:
+      name: difficulty
+      in: query
+      required: true
+      schema:
+        type: integer
+        enum:
+          - 1
+          - 2
+          - 3
+          - 4
     Keyword:
       name: keyword
       in: query
@@ -306,7 +693,6 @@ components:
       in: query
       schema:
         type: integer
-      example: 29
     Level:
       name: level
       in: query
@@ -314,30 +700,21 @@ components:
         type: integer
         minimum: 1
         maximum: 50
-      example: 49
-    DifficultyCode:
-      name: difficultyCode
+    Page:
+      name: page
       in: query
       schema:
         type: integer
-        enum:
-          - 1
-          - 2
-          - 3
-          - 4
-      description: 1 LIGHT, 2 NORMAL, 3 HYPER, 4 EX
-    DifficultyCodePath:
-      name: difficultyCode
-      in: path
-      required: true
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
       schema:
         type: integer
-        enum:
-          - 1
-          - 2
-          - 3
-          - 4
-      description: 1 LIGHT, 2 NORMAL, 3 HYPER, 4 EX
+        minimum: 1
+        maximum: 100
+        default: 50
 
   responses:
     BadRequest:
@@ -381,15 +758,6 @@ components:
         message:
           type: string
           example: Success
-    AcceptedResponse:
-      allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          properties:
-            data:
-              type: object
-              nullable: true
-              example: null
     ErrorResponse:
       type: object
       properties:
@@ -408,7 +776,28 @@ components:
                 type: string
               reason:
                 type: string
+    AcceptedResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              nullable: true
 
+    HealthResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                status:
+                  type: string
+                  example: UP
+                version:
+                  type: string
+                  example: 0.1.0
     LoginRequest:
       type: object
       required:
@@ -436,7 +825,23 @@ components:
                 expiresIn:
                   type: integer
                   example: 43200
-
+                role:
+                  type: string
+                  example: USER
+    AuthCheckResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                authenticated:
+                  type: boolean
+                role:
+                  type: string
+                isAdmin:
+                  type: boolean
     PasswordResetRequest:
       type: object
       required:
@@ -445,7 +850,6 @@ components:
         email:
           type: string
           format: email
-          example: player@example.com
     PasswordResetConfirmRequest:
       type: object
       required:
@@ -504,6 +908,7 @@ components:
       properties:
         code:
           type: integer
+          example: 1
         label:
           type: string
           example: 어시이지
@@ -526,7 +931,55 @@ components:
         sortOrder:
           type: integer
 
-    SongListResponse:
+    CreateChartRequest:
+      type: object
+      required:
+        - genreName
+        - songName
+        - version
+        - charts
+      properties:
+        genreName:
+          type: string
+        songName:
+          type: string
+        artistName:
+          type: string
+          nullable: true
+        version:
+          type: integer
+        isUpper:
+          type: boolean
+          default: false
+        jacketUrl:
+          type: string
+          nullable: true
+        charts:
+          type: array
+          items:
+            type: object
+            required:
+              - difficulty
+              - level
+            properties:
+              difficulty:
+                type: integer
+              level:
+                type: integer
+    CreateChartResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                songHash:
+                  type: string
+                createdChartCount:
+                  type: integer
+
+    GroupedChartListResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
         - type: object
@@ -537,17 +990,24 @@ components:
                 items:
                   type: array
                   items:
-                    $ref: "#/components/schemas/SongSummary"
+                    $ref: "#/components/schemas/GroupedChart"
                 page:
                   $ref: "#/components/schemas/PageInfo"
-    SongResponse:
+    GroupedChartResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
         - type: object
           properties:
             data:
-              $ref: "#/components/schemas/SongDetail"
-    SongSummary:
+              $ref: "#/components/schemas/GroupedChart"
+    ChartResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/ChartDetail"
+    GroupedChart:
       type: object
       properties:
         songHash:
@@ -564,21 +1024,12 @@ components:
         jacketUrl:
           type: string
           nullable: true
+        isUpper:
+          type: boolean
         charts:
           type: array
           items:
             $ref: "#/components/schemas/ChartSummary"
-    SongDetail:
-      allOf:
-        - $ref: "#/components/schemas/SongSummary"
-        - type: object
-          properties:
-            createdAt:
-              type: string
-              format: date-time
-            updatedAt:
-              type: string
-              format: date-time
     ChartSummary:
       type: object
       properties:
@@ -589,40 +1040,24 @@ components:
           $ref: "#/components/schemas/DifficultyConstant"
         level:
           type: integer
-        isUpper:
+        isDeleted:
           type: boolean
+    ChartDetail:
+      allOf:
+        - $ref: "#/components/schemas/ChartSummary"
+        - type: object
+          properties:
+            song:
+              $ref: "#/components/schemas/GroupedChart"
 
-    UserPlaydataResponse:
+    UserProfileResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
         - type: object
           properties:
             data:
-              type: object
-              properties:
-                user:
-                  $ref: "#/components/schemas/UserSummary"
-                playdata:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/PlaydataItem"
-    PopclassResponse:
-      allOf:
-        - $ref: "#/components/schemas/SuccessResponse"
-        - type: object
-          properties:
-            data:
-              type: object
-              properties:
-                user:
-                  $ref: "#/components/schemas/UserSummary"
-                popclass:
-                  type: integer
-                top50:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/PlaydataItem"
-    UserSummary:
+              $ref: "#/components/schemas/UserProfile"
+    UserProfile:
       type: object
       properties:
         poptomoId:
@@ -633,30 +1068,46 @@ components:
           type: integer
         characterName:
           type: string
+        comment:
+          type: string
         isHidden:
           type: boolean
-
-    PlaydataItem:
-      type: object
-      properties:
-        song:
-          $ref: "#/components/schemas/SongSummary"
-        chart:
-          $ref: "#/components/schemas/ChartSummary"
-        score:
-          type: integer
-          example: 98000
-        rank:
-          $ref: "#/components/schemas/RankConstant"
-        medal:
-          $ref: "#/components/schemas/MedalConstant"
-        popclass:
-          type: integer
+        profileImageUrl:
+          type: string
+          nullable: true
         updatedAt:
           type: string
           format: date-time
-
-    ChartRankingResponse:
+    UpdateUserProfileRequest:
+      type: object
+      properties:
+        userName:
+          type: string
+        comment:
+          type: string
+        isHidden:
+          type: boolean
+    UpdatePasswordRequest:
+      type: object
+      required:
+        - currentPassword
+        - newPassword
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+    UpdateEmailRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+    UserRankingResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
         - type: object
@@ -664,29 +1115,21 @@ components:
             data:
               type: object
               properties:
-                chart:
-                  $ref: "#/components/schemas/ChartSummary"
-                rankings:
+                items:
                   type: array
                   items:
-                    $ref: "#/components/schemas/RankingItem"
-    RankingItem:
-      type: object
-      properties:
-        ranking:
-          type: integer
-        user:
-          $ref: "#/components/schemas/UserSummary"
-        score:
-          type: integer
-        rank:
-          $ref: "#/components/schemas/RankConstant"
-        medal:
-          $ref: "#/components/schemas/MedalConstant"
-        popclass:
-          type: integer
+                    $ref: "#/components/schemas/UserRankingItem"
+                page:
+                  $ref: "#/components/schemas/PageInfo"
+    UserRankingItem:
+      allOf:
+        - $ref: "#/components/schemas/UserProfile"
+        - type: object
+          properties:
+            ranking:
+              type: integer
 
-    RenewRequest:
+    PlaydataUpsertRequest:
       type: object
       required:
         - poptomoId
@@ -711,14 +1154,14 @@ components:
         playdata:
           type: array
           items:
-            $ref: "#/components/schemas/RenewPlaydataItem"
-    RenewPlaydataItem:
+            $ref: "#/components/schemas/PlaydataInput"
+    PlaydataInput:
       type: object
       required:
         - genreName
         - songName
         - version
-        - difficultyCode
+        - difficulty
         - score
         - rankCode
         - medalCode
@@ -729,7 +1172,7 @@ components:
           type: string
         version:
           type: integer
-        difficultyCode:
+        difficulty:
           type: integer
         isUpper:
           type: boolean
@@ -737,11 +1180,11 @@ components:
           type: integer
         rankCode:
           type: integer
-          description: 크롤링 원천에서 얻은 랭크 코드
+          description: 원천 데이터에서 수집한 랭크 코드
         medalCode:
           type: integer
-          description: 크롤링 원천에서 얻은 메달 코드
-    RenewResponse:
+          description: 원천 데이터에서 수집한 메달 코드
+    PlaydataUpsertResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
         - type: object
@@ -754,6 +1197,205 @@ components:
                 updatedPlaydataCount:
                   type: integer
                 skippedCount:
+                  type: integer
+    PlaydataItem:
+      type: object
+      properties:
+        song:
+          $ref: "#/components/schemas/GroupedChart"
+        chart:
+          $ref: "#/components/schemas/ChartSummary"
+        score:
+          type: integer
+        rank:
+          $ref: "#/components/schemas/RankConstant"
+        medal:
+          $ref: "#/components/schemas/MedalConstant"
+        popclass:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+    UserPlaydataResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: "#/components/schemas/UserProfile"
+                playdata:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PlaydataItem"
+    PopclassResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                user:
+                  $ref: "#/components/schemas/UserProfile"
+                popclass:
+                  type: integer
+                toNext:
+                  type: integer
+                  nullable: true
+                top50:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PlaydataItem"
+    PlaydataCountResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                poptomoId:
+                  type: string
+                groupBy:
+                  type: string
+                  enum:
+                    - rank
+                    - medal
+                levels:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      level:
+                        type: integer
+                      counts:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            code:
+                              type: integer
+                            label:
+                              type: string
+                            count:
+                              type: integer
+    ChartMainResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                chart:
+                  $ref: "#/components/schemas/ChartDetail"
+                rankings:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RankingItem"
+                myPlaydata:
+                  $ref: "#/components/schemas/PlaydataItem"
+                  nullable: true
+    RankingItem:
+      type: object
+      properties:
+        ranking:
+          type: integer
+        user:
+          $ref: "#/components/schemas/UserProfile"
+        score:
+          type: integer
+        rank:
+          $ref: "#/components/schemas/RankConstant"
+        medal:
+          $ref: "#/components/schemas/MedalConstant"
+        popclass:
+          type: integer
+    PlaydataHistoryResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                type: object
+                properties:
+                  score:
+                    type: integer
+                  rank:
+                    $ref: "#/components/schemas/RankConstant"
+                  medal:
+                    $ref: "#/components/schemas/MedalConstant"
+                  popclass:
+                    type: integer
+                  eventType:
+                    type: string
+                  createdAt:
+                    type: string
+                    format: date-time
+    VersusPlaydataResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                type: object
+                properties:
+                  song:
+                    $ref: "#/components/schemas/GroupedChart"
+                  chart:
+                    $ref: "#/components/schemas/ChartSummary"
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        poptomoId:
+                          type: string
+                        playdata:
+                          $ref: "#/components/schemas/PlaydataItem"
+                          nullable: true
+
+    ImageUploadRequest:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+    ImageUploadResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                url:
+                  type: string
+                key:
+                  type: string
+
+    MigrationStatusResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                currentVersion:
+                  type: string
+                dirty:
+                  type: boolean
+                pendingCount:
                   type: integer
 
     PageInfo:
