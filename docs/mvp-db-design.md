@@ -50,6 +50,137 @@ MVP에서는 다음 테이블을 제안합니다.
 
 MVP에서는 `rank_policy`, `medal_policy`, `difficulty_policy`를 별도 테이블로 만들지 않고 애플리케이션 상수로 둡니다. 버전별 정책 변경을 코드로 감당하기 어려워지는 시점에 테이블로 승격합니다.
 
+## ERD
+
+MVP DB 구조를 읽기 쉽게 그리면 다음과 같습니다.
+
+DB foreign key constraint는 만들지 않지만, 아래 관계는 애플리케이션에서 보장해야 하는 참조 관계입니다.
+
+```mermaid
+erDiagram
+    USERS {
+        bigint user_id PK
+        varchar poptomo_id UK
+        varchar user_name
+        varchar password_hash
+        varchar email UK
+        datetime email_verified_at
+        int popclass
+        varchar character_name
+        varchar comment
+        boolean is_hidden
+        varchar role
+        datetime created_at
+        datetime updated_at
+    }
+
+    SONGS {
+        bigint song_id PK
+        char song_hash UK
+        varchar genre_name
+        varchar song_name
+        varchar artist_name
+        int version
+        varchar jacket_url
+        datetime created_at
+        datetime updated_at
+    }
+
+    CHARTS {
+        bigint chart_id PK
+        bigint song_id
+        tinyint difficulty_code
+        varchar difficulty_label
+        tinyint level
+        boolean is_upper
+        boolean is_deleted
+        datetime created_at
+        datetime updated_at
+    }
+
+    PLAYDATA {
+        bigint playdata_id PK
+        bigint user_id
+        bigint chart_id
+        int score
+        tinyint rank_code
+        tinyint medal_code
+        int popclass
+        datetime last_played_at
+        datetime created_at
+        datetime updated_at
+    }
+
+    PLAYDATA_HISTORY {
+        bigint history_id PK
+        bigint user_id
+        bigint chart_id
+        int score
+        tinyint rank_code
+        tinyint medal_code
+        int popclass
+        varchar event_type
+        datetime created_at
+    }
+
+    RENEW_LOGS {
+        bigint renew_log_id PK
+        varchar poptomo_id
+        bigint user_id
+        varchar status
+        varchar mode
+        int input_chart_count
+        int matched_chart_count
+        int updated_playdata_count
+        varchar failure_reason
+        varchar ip
+        datetime created_at
+    }
+
+    LOGIN_LOGS {
+        bigint login_log_id PK
+        varchar poptomo_id
+        bigint user_id
+        varchar status
+        varchar failure_reason
+        varchar ip
+        datetime created_at
+    }
+
+    PASSWORD_RESET_TOKENS {
+        bigint reset_token_id PK
+        bigint user_id
+        char token_hash UK
+        varchar email
+        datetime expires_at
+        datetime used_at
+        varchar requested_ip
+        datetime created_at
+    }
+
+    SONGS ||--o{ CHARTS : "has charts"
+    USERS ||--o{ PLAYDATA : "has latest playdata"
+    CHARTS ||--o{ PLAYDATA : "is played as"
+    USERS ||--o{ PLAYDATA_HISTORY : "has history"
+    CHARTS ||--o{ PLAYDATA_HISTORY : "records history"
+    USERS ||--o{ PASSWORD_RESET_TOKENS : "requests reset"
+    USERS ||--o{ RENEW_LOGS : "has renew logs"
+    USERS ||--o{ LOGIN_LOGS : "has login logs"
+```
+
+### 관계 요약
+
+| 관계 | 의미 | DB FK |
+| --- | --- | --- |
+| `songs 1:N charts` | 한 곡은 여러 난이도 채보를 가집니다. | 없음 |
+| `users 1:N playdata` | 한 유저는 여러 최신 플레이데이터를 가집니다. | 없음 |
+| `charts 1:N playdata` | 한 채보는 여러 유저의 플레이데이터를 가집니다. | 없음 |
+| `users + charts -> playdata unique` | 유저별 채보 최신 상태는 하나만 존재합니다. | unique key |
+| `users 1:N playdata_history` | 유저의 변경 이력을 저장합니다. | 없음 |
+| `charts 1:N playdata_history` | 채보별 변경 이력을 추적할 수 있습니다. | 없음 |
+| `users 1:N password_reset_tokens` | 이메일 비밀번호 복구 토큰을 저장합니다. | 없음 |
+| `users 1:N renew_logs/login_logs` | 갱신/로그인 시도 추적용입니다. | 없음 |
+
 ## users
 
 기존 `"user"`는 예약어 회피가 번거로우므로 `users`로 바꿉니다.
