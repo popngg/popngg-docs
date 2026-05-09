@@ -78,6 +78,26 @@ High☆Cheers 기준으로 난이도 표기는 `L / N / H / EX`를 우선 지원
 - 메달은 클리어 상태, 이지/노멀/하드 계열, 실패/미플레이 여부를 구분할 수 있어야 합니다.
 - API는 프론트가 badge 표시를 바로 할 수 있도록 `code`, `label`, `shortLabel`, `sortOrder`를 내려주는 방식을 권장합니다.
 
+### LONG POP ON/OFF
+
+LONG POP OFF 여부는 클리어 메달로 파악할 수 있습니다. 다만 LONG POP OFF 기록 이후 LONG POP ON으로 다시 플레이했을 때, 최종 점수가 어떤 값으로 남는지는 검증이 필요합니다.
+
+검증 예시:
+
+```text
+1. 95,000점 LONG POP OFF
+2. 이후 93,000점 LONG POP ON
+```
+
+이 경우 메달은 LONG POP ON 기준으로 갱신될 수 있지만, 점수가 95,000으로 유지되는지 93,000으로 바뀌는지 확인해야 합니다.
+
+프로젝트 정책:
+
+- 서버는 LONG POP ON/OFF 상태를 추론해 점수나 메달을 보정하지 않습니다.
+- 갱신 원천 데이터의 `score`, `rank`, `medal`을 저장합니다.
+- 팝클 계산은 저장된 score/medal을 기준으로 합니다.
+- 검증 전까지 LONG POP ON/OFF의 팝클 영향은 열린 이슈로 둡니다.
+
 ## 갱신 코드
 
 갱신 코드는 랭크를 반드시 함께 수집해야 합니다.
@@ -106,11 +126,17 @@ High☆Cheers에서 장르명 표기가 부활했습니다.
 
 ## 짠판정 / 짠게이지
 
-아직 위치가 확정되지 않았습니다.
+팝픈은 곡마다 짠판정, 짠게이지 특성이 존재합니다. MVP DB는 이를 저장할 수 있어야 합니다.
 
 | 선택지 | 장점 | 단점 |
 | --- | --- | --- |
 | Song metadata | 곡 단위 특성으로 보기 쉬움 | 난이도별로 다르면 표현 불가 |
 | Chart metadata | 난이도별 차이 표현 가능 | 곡 목록 조회 시 집계 필요 |
 
-권장 초안: 실제 게임에서 난이도별로 달라질 수 있다면 `chart`에 두고, 곡 목록 응답에서 요약값을 계산합니다.
+현재 권장: `charts.has_strict_judgement`, `charts.has_strict_gauge`로 둡니다. 실제 데이터가 곡 단위로만 존재한다고 확인되면 API 응답에서 곡 단위 요약값으로 집계합니다.
+
+## 추가 리서치 메모
+
+High☆Cheers 공개 자료에서 곡 목록은 장르명, 곡명, 아티스트, 캐릭터, BPM, L/N/H/EX 레벨을 함께 다룹니다. 따라서 장기적으로 곡 메타데이터에는 `artistName`, `characterName`, `bpm`, `releaseDate`, `eventName`을 추가할 가능성이 높습니다.
+
+자세한 요구사항은 [서비스와 게임 리서치](planning/service-research.md)를 참고합니다.

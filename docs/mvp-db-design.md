@@ -92,6 +92,8 @@ erDiagram
         tinyint difficulty_code
         varchar difficulty_label
         tinyint level
+        boolean has_strict_judgement
+        boolean has_strict_gauge
         boolean is_upper
         boolean is_deleted
         datetime created_at
@@ -272,12 +274,14 @@ song_hash = md5(normalizedGenreName + "|" + normalizedSongName + "|" + normalize
 | `difficulty_code` | TINYINT | NOT NULL | `1~4`, MVP에서는 기존 코드 유지 |
 | `difficulty_label` | VARCHAR(16) | NOT NULL | `LIGHT`, `NORMAL`, `HYPER`, `EX` |
 | `level` | TINYINT | NOT NULL | 레벨 |
+| `has_strict_judgement` | BOOLEAN | NOT NULL DEFAULT FALSE | 짠판정 여부 |
+| `has_strict_gauge` | BOOLEAN | NOT NULL DEFAULT FALSE | 짠게이지 여부 |
 | `is_upper` | BOOLEAN | NOT NULL DEFAULT FALSE | Upper 여부. 표시 딱지는 제거해도 데이터는 보존 |
 | `is_deleted` | BOOLEAN | NOT NULL DEFAULT FALSE | 삭제 여부 |
 | `created_at` | DATETIME | NOT NULL | 생성일 |
 | `updated_at` | DATETIME | NOT NULL | 수정일 |
 
-MVP에서는 `strict_judgement`, `strict_gauge`는 보류합니다. 실제 수집 가능 여부와 난이도별 차이를 확인한 뒤 `charts`에 추가하는 쪽이 안전합니다.
+팝픈은 곡 또는 채보마다 짠판정, 짠게이지 특성이 존재합니다. 난이도별로 달라질 가능성을 열어두기 위해 MVP에서는 `charts`에 둡니다. 실제 데이터가 곡 단위로만 존재한다고 확인되면 API 응답에서 곡 단위 요약값으로 집계할 수 있습니다.
 
 ### 인덱스
 
@@ -527,6 +531,8 @@ CREATE TABLE charts (
     difficulty_code TINYINT NOT NULL,
     difficulty_label VARCHAR(16) NOT NULL,
     level TINYINT NOT NULL,
+    has_strict_judgement BOOLEAN NOT NULL DEFAULT FALSE,
+    has_strict_gauge BOOLEAN NOT NULL DEFAULT FALSE,
     is_upper BOOLEAN NOT NULL DEFAULT FALSE,
     is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL,
@@ -634,7 +640,6 @@ CREATE TABLE password_reset_tokens (
 | `medal_policy` 테이블 | 신규 어시이지 코드 확정 필요 | 코드표 확정 후 테이블화 |
 | `difficulty_policy` 테이블 | High☆Cheers 기준 4개 라벨이면 충분 | 버전별 표시가 복잡해지면 테이블화 |
 | 검색 태그 | MVP 핵심 경로 아님 | `song_search_tags` 추가 |
-| strict judgement/gauge | 데이터 위치 미확정 | `charts` 컬럼 추가 후보 |
 
 ## 남은 결정 사항
 
@@ -645,3 +650,22 @@ CREATE TABLE password_reset_tokens (
 - 기존 password가 실제 원문인지, 외부 secret인지, 이미 hash인지 확인해야 합니다.
 - 이메일 인증을 MVP 1차에 포함할 것인가, 이메일 등록 후 복구만 먼저 열 것인가?
 - 비밀번호 복구 메일 발송 provider는 무엇을 쓸 것인가?
+- LONG POP ON/OFF 전환 시 점수와 팝클 계산에 어떤 기록이 남는지 검증해야 합니다.
+
+## 리서치 기반 확장 후보
+
+High☆Cheers 공식/공개 자료를 보면 곡 목록에서 `GENRE`, `TITLE`, `ARTIST`, `CHARA`, `BPM`, `L/N/H/EX`가 중요한 표시 정보로 쓰입니다. MVP DDL에는 최소 필드만 넣지만, 다음 필드는 빠르게 추가될 가능성이 높습니다.
+
+| 테이블 | 후보 필드 | 이유 |
+| --- | --- | --- |
+| `songs` | `bpm_min`, `bpm_max` | 곡 상세와 검색 필터 품질 개선 |
+| `songs` | `default_character_name` | 곡 목록/상세에서 CHARA 표시 |
+| `songs` | `release_date` | 최신 차트 정렬을 `created_at`보다 정확히 처리 |
+| `songs` | `event_name` | 이벤트/해금 곡 분류 |
+| `songs` | `source_category` | default, event, license, collab 등 구분 |
+| `songs` | `source_url` | 크롤링 출처 추적 |
+| `charts` | `note_count` | 점수/난이도 분석 확장 |
+| `playdata` | `long_pop_mode` | LONG POP ON/OFF 원천값이 확인될 경우 후보 |
+| `playdata_history` | `raw_score`, `raw_medal_code` | LONG POP ON/OFF 검증 중 원천 기록 보존 후보 |
+
+자세한 리서치 결과는 [서비스와 게임 리서치](planning/service-research.md)를 참고합니다.

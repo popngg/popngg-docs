@@ -1040,6 +1040,12 @@ components:
           $ref: "#/components/schemas/DifficultyConstant"
         level:
           type: integer
+        hasStrictJudgement:
+          type: boolean
+          description: 짠판정 여부
+        hasStrictGauge:
+          type: boolean
+          description: 짠게이지 여부
         isDeleted:
           type: boolean
     ChartDetail:

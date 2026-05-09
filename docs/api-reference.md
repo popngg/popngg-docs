@@ -12,12 +12,19 @@ hide:
     max-width: 100%;
   }
 
-  .md-content__inner {
-    max-width: none;
-  }
-
+  .md-sidebar--primary,
   .md-sidebar--secondary {
     display: none;
+  }
+
+  .md-content__inner {
+    max-width: none;
+    margin: 0;
+    padding: 1.2rem 1.4rem 0;
+  }
+
+  .md-main__inner {
+    display: block;
   }
 
   redoc {

@@ -6,11 +6,22 @@ repo_name: popngg
 theme:
   name: material
   language: ko
+  palette:
+    - scheme: default
+      primary: white
+      accent: teal
   features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.expand
     - navigation.path
     - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
     - content.code.copy
 
 plugins:
@@ -30,12 +41,16 @@ markdown_extensions:
       custom_checkbox: true
   - tables
 
+extra_css:
+  - assets/stylesheets/extra.css
+
 nav:
   - 홈: index.md
   - 기획:
       - 개요: planning/index.md
       - 프로젝트 개요: planning/overview.md
       - MVP 범위: planning/mvp-scope.md
+      - 서비스와 게임 리서치: planning/service-research.md
       - 게임 시스템: game-system.md
   - 설계:
       - 개요: design/index.md

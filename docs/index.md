@@ -1,19 +1,44 @@
-# popn.gg Docs
+<section class="doc-hero">
+  <span class="doc-hero__eyebrow">popn.gg Refactor Docs</span>
+  <h1>popn.gg 문서 허브</h1>
+  <p>
+    popn.gg는 아케이드 리듬게임 <code>pop'n music</code>의 곡, 채보, 플레이데이터, 랭킹 정보를 제공하는 서비스입니다.
+    이 문서는 High☆Cheers 리팩토링을 정리하면서, 추후 오픈소스 공개에도 사용할 수 있는 프로젝트 문서 허브로 관리합니다.
+  </p>
+</section>
 
-popn.gg는 아케이드 리듬게임 `pop'n music`의 곡, 채보, 플레이데이터, 랭킹 정보를 제공하는 서비스입니다.
-
-이 문서는 현재 진행 중인 High☆Cheers 리팩토링을 정리하는 동시에, 추후 오픈소스 공개를 염두에 둔 프로젝트 문서 허브입니다.
-
-## 문서 섹션
-
-| 섹션 | 내용 |
-| --- | --- |
-| [기획](planning/index.md) | 프로젝트 목표, MVP 범위, 게임 시스템 정책 |
-| [설계](design/index.md) | 아키텍처, DB 모델링, 마이그레이션 전략, ADR |
-| [API](api/index.md) | API 설계 원칙과 Redoc 기반 API Reference |
-| [컨벤션](conventions/index.md) | 문서, 코드, DB, Git 운영 규칙 |
-| [운영](operations.md) | Jenkins, Docker, Flyway 기반 배포와 운영 |
-| [LLM 컨텍스트](llm-context.md) | Codex/LLM이 구현 전에 읽을 압축 컨텍스트 |
+<div class="doc-grid doc-grid--wide">
+  <a class="doc-card" href="planning/">
+    <span class="doc-card__eyebrow">Planning</span>
+    <strong>기획</strong>
+    <p>프로젝트 목표, MVP 범위, High☆Cheers 게임 시스템 정책을 정리합니다.</p>
+  </a>
+  <a class="doc-card" href="design/">
+    <span class="doc-card__eyebrow">Design</span>
+    <strong>설계</strong>
+    <p>아키텍처, DB 모델링, 마이그레이션 전략, 의사결정 기록을 모읍니다.</p>
+  </a>
+  <a class="doc-card" href="api/">
+    <span class="doc-card__eyebrow">API</span>
+    <strong>API</strong>
+    <p>API 설계 원칙, 엔드포인트 초안, Redoc 기반 API Reference를 제공합니다.</p>
+  </a>
+  <a class="doc-card" href="conventions/">
+    <span class="doc-card__eyebrow">Convention</span>
+    <strong>컨벤션</strong>
+    <p>문서, 코드, DB, Git 운영 규칙을 공개 가능한 형태로 정리합니다.</p>
+  </a>
+  <a class="doc-card" href="operations/">
+    <span class="doc-card__eyebrow">Operations</span>
+    <strong>운영</strong>
+    <p>Jenkins, Docker, Flyway 기반 배포와 운영 체크리스트를 관리합니다.</p>
+  </a>
+  <a class="doc-card" href="llm-context/">
+    <span class="doc-card__eyebrow">LLM</span>
+    <strong>LLM 컨텍스트</strong>
+    <p>Codex/LLM이 구현 전에 읽을 압축된 프로젝트 컨텍스트입니다.</p>
+  </a>
+</div>
 
 ## 현재 리팩토링 핵심
 
@@ -40,4 +65,3 @@ mkdocs serve
 ```
 
 브라우저에서 `http://127.0.0.1:8000`을 열면 됩니다.
-

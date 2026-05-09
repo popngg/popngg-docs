@@ -1,11 +1,21 @@
-# API
+<section class="doc-hero">
+  <span class="doc-hero__eyebrow">API</span>
+  <h1>API</h1>
+  <p>프론트에서 데이터 가공을 줄이기 위한 API 설계 원칙과 OpenAPI 기반 Reference를 제공합니다.</p>
+</section>
 
-이 섹션은 API 설계 원칙과 OpenAPI 기반 API Reference를 제공합니다.
-
-## 문서
-
-- [API 설계](../api-design.md)
-- [API Reference](../api-reference.md)
+<div class="doc-grid">
+  <a class="doc-card" href="../api-design/">
+    <span class="doc-card__eyebrow">Design</span>
+    <strong>API 설계</strong>
+    <p>엔드포인트 목록, 응답 정책, 추가로 필요할 API 후보를 정리합니다.</p>
+  </a>
+  <a class="doc-card" href="../api-reference/">
+    <span class="doc-card__eyebrow">Reference</span>
+    <strong>API Reference</strong>
+    <p>OpenAPI YAML을 Redoc으로 렌더링한 상세 API 문서입니다.</p>
+  </a>
+</div>
 
 ## 문서화 방식
 
@@ -19,4 +29,3 @@
 - 내부 id와 외부 식별자를 분리합니다.
 - `rank`, `medal`, `difficulty`는 code와 label을 함께 제공합니다.
 - 랭크는 score에서 계산하지 않고 원천 데이터의 값을 저장합니다.
-
