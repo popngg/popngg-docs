@@ -1,6 +1,10 @@
-﻿# popn.gg Docs
+# popn.gg Docs
 
-popn.gg 리팩토링 개발 문서입니다.
+popn.gg refactor and development documentation.
+
+## Published Site
+
+https://popngg.github.io/popngg-docs/
 
 ## Local Preview
 
@@ -14,4 +18,3 @@ mkdocs serve
 ```bash
 mkdocs build --strict
 ```
-"# popngg-docs" 

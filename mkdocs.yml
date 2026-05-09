@@ -31,7 +31,6 @@ markdown_extensions:
 nav:
   - 개요: index.md
   - LLM 컨텍스트: llm-context.md
-  - 리팩토링 로드맵: refactor-roadmap.md
   - 아키텍처: architecture.md
   - 게임 시스템: game-system.md
   - 기존 DB 구조 추정: legacy-db-inference.md
