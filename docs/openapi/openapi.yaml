@@ -205,8 +205,12 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Keyword"
         - $ref: "#/components/parameters/Version"
+        - $ref: "#/components/parameters/ChartVersion"
         - $ref: "#/components/parameters/Level"
         - $ref: "#/components/parameters/DifficultyCodeQuery"
+        - $ref: "#/components/parameters/IsUpper"
+        - $ref: "#/components/parameters/HasStrictGauge"
+        - $ref: "#/components/parameters/HasStrictJudgement"
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Size"
       responses:
@@ -232,6 +236,8 @@ paths:
             minimum: 1
             maximum: 50
             default: 10
+        - $ref: "#/components/parameters/ChartVersion"
+        - $ref: "#/components/parameters/IsUpper"
       responses:
         "200":
           description: 최신 그룹 차트 목록
@@ -380,6 +386,23 @@ paths:
       parameters:
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/Size"
+        - $ref: "#/components/parameters/Keyword"
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum:
+              - displayPopclass
+              - potentialPopclass
+              - legacyPopclass
+            default: displayPopclass
+          description: 유저 랭킹 정렬 기준입니다.
+        - name: includeHidden
+          in: query
+          schema:
+            type: boolean
+            default: false
+          description: 관리자 전용. 비공개 유저 포함 여부입니다.
       responses:
         "200":
           description: 유저 팝클 랭킹 목록
@@ -421,6 +444,8 @@ paths:
       operationId: countPlaydata
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
+        - $ref: "#/components/parameters/BestType"
+        - $ref: "#/components/parameters/TargetVersion"
         - name: groupBy
           in: query
           required: true
@@ -438,6 +463,7 @@ paths:
               - 2
               - 3
               - 4
+        - $ref: "#/components/parameters/IsUpper"
       responses:
         "200":
           description: 레벨별 집계
@@ -454,6 +480,7 @@ paths:
       operationId: getPopclassTable
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
+        - $ref: "#/components/parameters/TargetVersion"
       responses:
         "200":
           description: 유저 팝클과 상위 50개 플레이데이터
@@ -470,6 +497,12 @@ paths:
       operationId: getAllPlaydata
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
+        - $ref: "#/components/parameters/BestType"
+        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/DifficultyCodeQuery"
+        - $ref: "#/components/parameters/IsUpper"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
       responses:
         "200":
           description: 유저 전체 플레이데이터
@@ -488,6 +521,17 @@ paths:
       parameters:
         - $ref: "#/components/parameters/SongHashQuery"
         - $ref: "#/components/parameters/DifficultyCodeQueryRequired"
+        - $ref: "#/components/parameters/BestType"
+        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/IsUpper"
+        - name: rankingLimit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+          description: 차트 상세 랭킹에 포함할 최대 유저 수입니다.
         - name: poptomoId
           in: query
           schema:
@@ -519,6 +563,9 @@ paths:
               - 2
               - 3
               - 4
+        - $ref: "#/components/parameters/BestType"
+        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/IsUpper"
       responses:
         "200":
           description: 플레이데이터 히스토리
@@ -544,6 +591,10 @@ paths:
           style: form
           explode: false
           example: "123456789,987654321"
+        - $ref: "#/components/parameters/BestType"
+        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/DifficultyCodeQuery"
+        - $ref: "#/components/parameters/IsUpper"
       responses:
         "200":
           description: 유저 비교 데이터
@@ -693,6 +744,13 @@ components:
       in: query
       schema:
         type: integer
+      description: 원곡 또는 곡 그룹의 최초 수록 버전입니다.
+    ChartVersion:
+      name: chartVersion
+      in: query
+      schema:
+        type: integer
+      description: 채보 또는 Upper 채보가 실제로 등장한 게임 버전입니다.
     Level:
       name: level
       in: query
@@ -700,6 +758,40 @@ components:
         type: integer
         minimum: 1
         maximum: 50
+    IsUpper:
+      name: isUpper
+      in: query
+      schema:
+        type: boolean
+      description: Upper 채보 필터입니다.
+    HasStrictGauge:
+      name: hasStrictGauge
+      in: query
+      schema:
+        type: boolean
+      description: 짠게이지 채보 필터입니다.
+    HasStrictJudgement:
+      name: hasStrictJudgement
+      in: query
+      schema:
+        type: boolean
+      description: 짠판정 채보 필터입니다.
+    BestType:
+      name: bestType
+      in: query
+      schema:
+        type: string
+        enum:
+          - VERSION_BEST
+          - ALL_TIME_BEST
+        default: VERSION_BEST
+      description: 현재 버전 베스트 또는 역대 베스트 조회 스코프입니다.
+    TargetVersion:
+      name: targetVersion
+      in: query
+      schema:
+        type: integer
+      description: VERSION_BEST 대상 버전입니다. ALL_TIME_BEST에서는 0을 사용합니다. 생략 시 서버의 현재 버전을 사용합니다.
     Page:
       name: page
       in: query
@@ -798,6 +890,9 @@ components:
                 version:
                   type: string
                   example: 0.1.0
+                serverTime:
+                  type: string
+                  format: date-time
     LoginRequest:
       type: object
       required:
@@ -883,6 +978,10 @@ components:
                   type: array
                   items:
                     $ref: "#/components/schemas/DifficultyConstant"
+                creditTypes:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/CreditTypeConstant"
     RankConstant:
       type: object
       properties:
@@ -930,6 +1029,22 @@ components:
           example: EX
         sortOrder:
           type: integer
+    CreditTypeConstant:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+            - NORMAL
+            - EXTRA
+            - TIME_PLAY_10
+            - TIME_PLAY_16
+        label:
+          type: string
+          example: TIME PLAY(10分)
+        fieldName:
+          type: string
+          example: timePlay10Credit
 
     CreateChartRequest:
       type: object
@@ -977,6 +1092,14 @@ components:
                 type: boolean
                 default: false
                 description: 해당 채보가 Upper인지 여부입니다.
+              hasStrictGauge:
+                type: boolean
+                default: false
+                description: 짠게이지 여부입니다.
+              hasStrictJudgement:
+                type: boolean
+                default: false
+                description: 짠판정 여부입니다.
     CreateChartResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -988,6 +1111,10 @@ components:
                 songHash:
                   type: string
                 createdChartCount:
+                  type: integer
+                updatedChartCount:
+                  type: integer
+                skippedChartCount:
                   type: integer
 
     GroupedChartListResponse:
@@ -1212,20 +1339,32 @@ components:
     PlaydataInput:
       type: object
       required:
-        - genreName
-        - songName
-        - version
         - difficulty
         - score
         - rankCode
         - medalCode
       properties:
+        songHash:
+          type: string
+          nullable: true
+          description: 있으면 chart 매칭에 가장 우선 사용합니다.
         genreName:
           type: string
+          nullable: true
         songName:
           type: string
+          nullable: true
+        artistName:
+          type: string
+          nullable: true
         version:
           type: integer
+          nullable: true
+          description: 원곡 또는 곡 그룹의 최초 수록 버전입니다.
+        chartVersion:
+          type: integer
+          nullable: true
+          description: 채보 또는 Upper 채보가 실제로 등장한 버전입니다.
         difficulty:
           type: integer
         isUpper:
@@ -1252,10 +1391,41 @@ components:
               properties:
                 matchedChartCount:
                   type: integer
+                receivedCount:
+                  type: integer
                 updatedPlaydataCount:
+                  type: integer
+                historyCreatedCount:
                   type: integer
                 skippedCount:
                   type: integer
+                displayPopclass:
+                  type: integer
+                potentialPopclass:
+                  type: integer
+                unmatched:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/UnmatchedPlaydataItem"
+    UnmatchedPlaydataItem:
+      type: object
+      properties:
+        index:
+          type: integer
+          description: 입력 playdata 배열에서의 index입니다.
+        reason:
+          type: string
+          example: CHART_NOT_FOUND
+        songHash:
+          type: string
+          nullable: true
+        songName:
+          type: string
+          nullable: true
+        difficulty:
+          type: integer
+        isUpper:
+          type: boolean
     PlaydataItem:
       type: object
       properties:
@@ -1316,6 +1486,8 @@ components:
                   type: array
                   items:
                     $ref: "#/components/schemas/PlaydataItem"
+                page:
+                  $ref: "#/components/schemas/PageInfo"
     PopclassResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -1339,6 +1511,25 @@ components:
                   type: array
                   items:
                     $ref: "#/components/schemas/PlaydataItem"
+                buckets:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PopclassBucket"
+    PopclassBucket:
+      type: object
+      properties:
+        bucket:
+          type: string
+          enum:
+            - CURRENT_VERSION
+            - OLD_VERSION
+        requiredCount:
+          type: integer
+          example: 20
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaydataItem"
     PlaydataCountResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -1396,6 +1587,10 @@ components:
                 myPlaydata:
                   $ref: "#/components/schemas/PlaydataItem"
                   nullable: true
+                recentHistories:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PlaydataHistoryItem"
     RankingItem:
       type: object
       properties:
@@ -1437,32 +1632,49 @@ components:
         - type: object
           properties:
             data:
-              type: array
-              items:
-                type: object
-                properties:
-                  score:
-                    type: integer
-                  bestType:
-                    type: string
-                    enum:
-                      - VERSION_BEST
-                      - ALL_TIME_BEST
-                  targetVersion:
-                    type: integer
-                  scoreVersion:
-                    type: integer
-                  rank:
-                    $ref: "#/components/schemas/RankConstant"
-                  medal:
-                    $ref: "#/components/schemas/MedalConstant"
-                  popclass:
-                    type: integer
-                  eventType:
-                    type: string
-                  createdAt:
-                    type: string
-                    format: date-time
+              type: object
+              properties:
+                user:
+                  $ref: "#/components/schemas/UserProfile"
+                song:
+                  $ref: "#/components/schemas/GroupedChart"
+                chart:
+                  $ref: "#/components/schemas/ChartSummary"
+                histories:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PlaydataHistoryItem"
+    PlaydataHistoryItem:
+      type: object
+      properties:
+        score:
+          type: integer
+        bestType:
+          type: string
+          enum:
+            - VERSION_BEST
+            - ALL_TIME_BEST
+        targetVersion:
+          type: integer
+        scoreVersion:
+          type: integer
+        rank:
+          $ref: "#/components/schemas/RankConstant"
+        medal:
+          $ref: "#/components/schemas/MedalConstant"
+        popclass:
+          type: integer
+        eventType:
+          type: string
+          enum:
+            - REGISTER
+            - SCORE_UP
+            - RANK_UP
+            - MEDAL_UP
+            - MANUAL
+        createdAt:
+          type: string
+          format: date-time
     VersusPlaydataResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
