@@ -6,6 +6,7 @@
 - 기존 플레이데이터, 유저, 차트 데이터를 손실 없이 이전합니다.
 - songhash 변경에 따른 매핑 테이블을 남겨 롤백과 추적이 가능하게 합니다.
 - 스키마 변경 이력은 Flyway로 관리합니다.
+- 레거시 DB는 입력 데이터와 비교 기준으로만 사용하고, 새 운영/배포 기준은 신규 문서에 맞춥니다.
 
 ## 원칙
 
@@ -32,23 +33,25 @@
 
 세션을 크게 두는 이유:
 
-- `chart -> songs/charts` 분리, `playdata` 버전 베스트 분리, 비밀번호 재해싱처럼 서로 연결된 변경이 많습니다.
+- `chart -> songs/charts` 분리, `playdata` 버전 베스트 분리, 비밀번호 전환 정책처럼 서로 연결된 변경이 많습니다.
 - 작은 Flyway 파일로만 쪼개면 “어떤 단위가 검증 완료되었는지” 추적하기 어렵습니다.
 - 운영 전환 시에는 파일 개수보다 세션별 성공/중단 기준이 더 중요합니다.
 - 데이터 변환은 재실행 가능성과 실패 row 추적이 필요하므로 schema migration과 같은 단위로 묶지 않습니다.
 
 ## Flyway 파일 구조
 
-백엔드 저장소 기준 권장 위치:
+백엔드 실행 classpath 기준 위치:
 
 ```text
-src/main/resources/db/migration/
+db/migration/
   V1__baseline_account_and_security.sql
   V2__baseline_music_catalog.sql
   V3__baseline_playdata_and_logs.sql
   V4__baseline_support_tables.sql
   V5__seed_constants.sql
 ```
+
+실제 저장 위치는 Flyway 의존성과 datasource 설정을 어느 모듈이 소유하는지 결정한 뒤 확정합니다. 현재 멀티모듈 구조에서는 `popngg-infra/src/main/resources/db/migration/`, 애플리케이션 실행 모듈의 `src/main/resources/db/migration/`, 또는 별도 migration 모듈 중 하나를 선택해야 합니다.
 
 초기 MVP에서는 테이블 하나당 파일 하나로 너무 잘게 쪼개지 않습니다. 대신 리뷰 가능한 큰 세션 단위로 묶습니다.
 
@@ -84,7 +87,7 @@ src/main/resources/db/migration/
 - 테이블 단위보다 큰 baseline 세션 단위로 파일을 구성합니다.
 - 기존 테이블은 즉시 삭제하지 않습니다.
 - 운영 배포 전 로컬/스테이징에서 `flyway_schema_history`를 확인합니다.
-- 애플리케이션 시작 시 Flyway migration이 자동 실행되게 하되, 운영 배포에서는 Jenkins 단계에서 상태를 먼저 확인합니다.
+- 운영 배포에서는 Jenkins 단계에서 상태를 먼저 확인하고, 필요하면 migration container를 별도로 실행합니다.
 
 ### 3. 데이터 이전 준비
 
@@ -94,9 +97,10 @@ src/main/resources/db/migration/
 - 기존 `playdata`를 28버전 기록으로 변환하는 스크립트 작성
 - `playdata.best_type`, `playdata.target_version`, `playdata.score_version` 적재 정책 반영
 - 기존 playdata를 `ALL_TIME_BEST`로 적재한 뒤 `users.potential_popclass`를 계산하는 스크립트 작성
-- 기존 credit 3종(`normal/battle/local`)과 신규 High☆Cheers credit 4종(`NORMAL/EXTRA/TIME PLAY 10분/TIME PLAY 16분`)의 매핑 정책 확정
-- 기존 유저 비밀번호를 salt 정책에 맞춰 재해싱
+- 기존 credit/코인수는 신규 High☆Cheers credit으로 매핑하지 않고 0으로 초기화
+- 기존 유저 비밀번호 저장값의 성격을 확인하고, 확정된 전환 방식에 따라 재해싱 또는 재설정 플로우 적용
 - old/new songhash 매핑 테이블 또는 산출물 생성
+- 곡 메타데이터 변경으로 songhash가 바뀔 경우를 대비해 old/new songhash alias 또는 redirect 정책 정의
 - 실패 row 리포트 형식 정의
 
 대량 데이터 이전은 Flyway에 넣지 않는 것을 권장합니다. 데이터 양, 실행 시간, 실패 복구가 스키마 migration보다 훨씬 민감하기 때문입니다.
@@ -108,7 +112,7 @@ src/main/resources/db/migration/
 | 세션 | Step 후보 |
 | --- | --- |
 | Identity Mapping | song dedupe, chart mapping, old/new songhash mapping, user mapping, Upper chart version mapping |
-| Data Transform | users 이전, password 재해싱, songs/charts 적재, `songs.version`/`charts.chart_version` 분리, playdata 적재, history 적재, logs 이전 |
+| Data Transform | users 이전, password 전환 정책 적용, 기존 credit/코인수 0 초기화, songs/charts 적재, `songs.version`/`charts.chart_version` 분리, playdata 적재, history 적재, logs 이전 |
 | Playdata Transform | 기존 점수 `score_version = 28`, `ALL_TIME_BEST` 생성, 필요 시 28버전 `VERSION_BEST` 복제 |
 | Popclass Rebuild | `legacy_popclass` 보존, `potential_popclass` 계산, 필요 시 `display_popclass` 초기화 |
 | Verification | row count 비교, orphan check, unique violation check, popclass 재계산 diff |
@@ -140,7 +144,7 @@ src/main/resources/db/migration/
 - `legacy_popclass`가 기존 `users.popclass`를 보존하는지 확인
 - `potential_popclass`가 `ALL_TIME_BEST` 기준으로 계산되었는지 확인
 - `display_popclass`가 현재 버전 `VERSION_BEST` 기준으로 계산되는지 확인
-- 신규 credit 4종이 의도한 값으로 적재되었는지 확인. 기존 `battle/local`이 임의로 잘못 매핑되지 않았는지 확인
+- 신규 credit 4종이 모두 0으로 초기화되었는지 확인. 기존 `normal/battle/local` 값이 임의로 섞이지 않았는지 확인
 
 ### 4-1. 팝클래스 재계산 검증
 
@@ -165,10 +169,10 @@ src/main/resources/db/migration/
 1. 운영 DB를 백업합니다.
 2. Jenkins 배포 job의 동시 실행을 막습니다.
 3. 서버를 닫습니다.
-4. Docker image를 배포합니다.
-5. Flyway 스키마 migration 상태를 확인합니다.
-6. 최종 데이터 싱크 job을 수행합니다.
-7. 검증 쿼리를 다시 실행합니다.
+4. Flyway 스키마 migration을 실행하거나 이미 적용된 상태를 확인합니다.
+5. 최종 데이터 싱크 job을 수행합니다.
+6. 검증 쿼리를 다시 실행합니다.
+7. Docker image를 배포합니다.
 8. 애플리케이션 설정을 신규 DB/테이블로 고정합니다.
 9. 서버를 다시 엽니다.
 10. 주요 API smoke test를 실행합니다.
@@ -186,9 +190,9 @@ checkout
 → backup DB
 → Session 1. Flyway schema baseline
 → Session 2. migration dry-run or precheck
-→ deploy container
 → Session 3. final data transform
 → Session 4. verification
+→ deploy app container
 → Session 5. cutover
 → health check
 → smoke test
@@ -202,18 +206,19 @@ deploy migration container
 → deploy app container
 ```
 
-둘 중 MVP에서는 Spring Boot Flyway 자동 실행으로 시작할 수 있지만, 운영 데이터가 커지면 migration container 분리를 권장합니다.
+로컬 개발에서는 Spring Boot Flyway 자동 실행을 허용할 수 있습니다. staging/production, 특히 이번 리팩토링처럼 DB 구조가 크게 바뀌는 전환에서는 Jenkins의 명시 단계 또는 migration container를 우선합니다. 애플리케이션 컨테이너 시작과 schema baseline 적용이 섞이면 실패 시 원인 분리가 어려워집니다.
 
-이번 리팩토링처럼 DB 구조가 크게 바뀌는 전환에서는 Spring Boot 자동 Flyway보다 Jenkins의 명시 단계 또는 migration container를 우선합니다. 애플리케이션 컨테이너 시작과 schema baseline 적용이 섞이면 실패 시 원인 분리가 어려워집니다.
+위험한 스키마 변경은 한 번에 처리하지 않습니다.
 
-## 비밀번호 마이그레이션 초안
+| 단계 | 의미 |
+| --- | --- |
+| Expand | 새 컬럼/테이블/index를 먼저 추가하고, 기존 API와 동시에 동작하게 함 |
+| Deploy | 새 애플리케이션을 배포해 새 구조를 사용하게 함 |
+| Contract | 더 이상 쓰지 않는 컬럼/테이블/코드를 별도 승인 후 제거 |
 
-```text
-for each user:
-  salt = user.poptomo_id
-  migrated_input = user.password + ":" + salt
-  user.password_hash = passwordEncoder.encode(migrated_input)
-```
+## 비밀번호 마이그레이션 검토
+
+기존 `user.password`가 원문인지, 외부 secret인지, 이미 hash인지 확정되지 않았습니다. 따라서 현재 문서에서는 특정 재해싱 수식을 확정하지 않습니다.
 
 로그인 시에는 사용자가 입력한 원문 비밀번호가 아니라 기존 hash를 어떻게 복원/비교할 수 있는지 확인해야 합니다. 현재 저장값이 이미 원문 비밀번호가 아닌 hash라면, 사용자가 입력한 비밀번호로는 `legacy_hash + salt`를 재현할 수 없습니다.
 

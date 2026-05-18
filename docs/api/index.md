@@ -22,6 +22,7 @@
 - API 계약은 `docs/openapi/openapi.yaml`로 관리합니다.
 - MkDocs에서는 Redoc으로 API Reference를 렌더링합니다.
 - 백엔드 구현이 안정되면 SpringDoc `/v3/api-docs`에서 OpenAPI 문서를 갱신하는 흐름을 권장합니다.
+- API 이름과 구조는 현재 제품 기준으로 정하고, 레거시 엔드포인트와 1:1로 맞추지 않습니다.
 
 ## 원칙
 

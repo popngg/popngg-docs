@@ -47,13 +47,15 @@
 
 ## 현재 리팩토링 핵심
 
+- 이 프로젝트는 새로 시작하는 기준으로 설계합니다. `popngg-old`는 참고 자료일 뿐이며, 문서와 새 구현이 기준입니다.
 - 기준 게임 버전은 `pop'n music High☆Cheers!!`입니다.
 - `song`과 `chart`를 분리합니다.
 - 랭크는 점수로 계산하지 않고 크롤링 원천 데이터에서 받은 값을 저장합니다.
 - 이메일 기반 비밀번호 복구를 MVP에 포함합니다.
 - DB foreign key constraint는 만들지 않고 애플리케이션 검증과 인덱스로 운영합니다.
+- 긴 갱신, 집계, 외부 I/O는 요청 경로와 분리하고 job/worker로 처리합니다.
 - DB schema migration은 Flyway로 관리합니다.
-- 배포는 Jenkins와 Docker를 기준으로 합니다.
+- 배포는 Jenkins가 오케스트레이션하고, 산출물은 Docker image로 배포합니다.
 
 ## 공개 문서 운영 원칙
 

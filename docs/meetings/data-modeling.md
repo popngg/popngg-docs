@@ -239,7 +239,7 @@ users
 2. playdata의 source of truth는 `VERSION_BEST`와 `ALL_TIME_BEST` 두 row 구조로 확정할 것인가?
 3. 기존 DB 점수는 `ALL_TIME_BEST(score_version = 28)`만 만들 것인가?
 4. 현재 버전 기록이 없는 유저의 `display_popclass`는 0으로 둘 것인가, 기존 값을 임시 표시할 것인가?
-5. 비밀번호 재해싱은 마이그레이션 중 일괄 처리할 것인가, 로그인 시 점진적으로 처리할 것인가?
+5. 비밀번호 전환은 legacy 검증 후 점진 업그레이드, 일괄 재해싱, 강제 재설정 중 무엇을 기준으로 할 것인가?
 6. `users`를 단일 테이블로 유지할 것인가, `user_profiles`, `user_game_stats`로 분리할 것인가?
 7. 단일 테이블로 시작한다면 application layer와 API DTO에서는 책임 경계를 미리 나눌 것인가?
 8. 곡별 성장 추세는 MVP에서 best 변경 이력만으로 시작할 것인가, 크롤링 snapshot을 모두 저장할 것인가?

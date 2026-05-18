@@ -1,6 +1,7 @@
 # 의사결정 기록
 
 확정되지 않은 내용은 `Proposed`로 두고, 합의되면 `Accepted`로 바꿉니다.
+레거시 코드는 결정의 참고 자료일 뿐이고, 최종 판단은 신규 설계와 현재 요구사항을 기준으로 합니다.
 
 ## ADR-001: DB FK 제거
 
@@ -68,10 +69,11 @@
 
 - 상태: Accepted
 - 결정: `playdata`는 `best_type`, `target_version`, `score_version`을 저장해 현재 버전 베스트와 역대 베스트를 분리한다.
-- 이유: High☆Cheers부터 기존 점수가 초기화되고, 게임이 현재 버전 베스트와 역대 베스트를 나눠서 관리하기 때문이다.
+- 이유: High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었고, 이후 다른 버전에서도 같은 정책이 반복될 수 있으므로 버전 베스트와 역대 베스트를 일반 구조로 저장해야 하기 때문이다.
 - 영향: 기존 DB의 플레이데이터는 28버전 기록으로 마이그레이션한다.
 - 영향: 앞으로 크롤링한 점수는 현재 버전에서 나온 기록으로 저장한다.
 - 영향: 유저 팝클은 현재 버전 `VERSION_BEST` 기준으로 계산한다.
+- 영향: 조회 API는 현재 버전 전용 화면과 비교/상세 화면을 구분해 `VERSION_BEST`와 `ALL_TIME_BEST`를 명시적으로 내려줘야 한다.
 - 열린 질문: 기존 playdata를 28버전 `VERSION_BEST` row로도 복제할지, MVP에서는 `ALL_TIME_BEST`만 보존할지 결정해야 한다.
 
 ## ADR-010: 팝클 산정 대상 bucket은 서버가 계산해 playdata에 마킹한다
@@ -82,3 +84,18 @@
 - 이유: 같은 song이라도 Upper가 나온 버전은 다를 수 있으므로, `songs.version`으로 신곡/구곡을 판단하면 bucket이 틀릴 수 있다.
 - 영향: `/playdata/popclass/{poptomoId}`는 매번 전체 정렬하지 않고 마킹된 row를 우선 조회할 수 있다.
 - 영향: playdata 갱신 job은 upsert 이후 bucket 마킹 재계산을 필수 후속 step으로 가져야 한다.
+
+## ADR-011: songhash는 내부 참조 기준으로 사용하지 않는다
+
+- 상태: Accepted
+- 결정: `song_hash`는 외부 조회 alias로 취급하고, 내부 영속 데이터와 변경 API는 `song_id`, `chart_id`를 기준으로 연결한다.
+- 이유: 기존에는 장르명과 제목이 불변이라고 가정했지만, High☆Cheers 이후 장르명/제목/작곡가 같은 표시 메타데이터가 보정될 수 있다. 기존 데이터에서는 장르명이 없던 곡의 `genreName`에 제목과 같은 문자열을 넣어왔으므로 장르명도 안정적인 식별자가 아니다.
+- 영향: `playdata`, `playdata_history`, 이미지, 검색 index, cache는 `song_hash`에 직접 종속되지 않아야 한다.
+- 영향: 곡 메타데이터 변경 API는 `songId`를 사용하고, songhash가 바뀌면 old/new mapping 또는 alias를 남긴다.
+
+## ADR-012: 기존 credit/코인수는 마이그레이션에서 초기화한다
+
+- 상태: Accepted
+- 결정: 기존 DB의 `normal_credit`, `battle_credit`, `local_credit` 값은 신규 High☆Cheers credit으로 매핑하지 않고 0으로 초기화한다.
+- 이유: High☆Cheers 기준 credit 체계가 기존 3종과 다르고, 기존 코인수를 새 시즌 값처럼 보존하면 사용자에게 잘못된 상태를 보여줄 수 있다.
+- 영향: 신규 `normal_credit`, `extra_credit`, `time_play_10_credit`, `time_play_16_credit`는 초기값 0으로 시작하고, 이후 크롤링/갱신으로 채운다.

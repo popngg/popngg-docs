@@ -10,10 +10,15 @@
     <strong>아키텍처</strong>
     <p>서버, DB, 배포, 외부 연동의 큰 구조를 설명합니다.</p>
   </a>
+  <a class="doc-card" href="../legacy-risk-response/">
+    <span class="doc-card__eyebrow">Risk</span>
+    <strong>레거시 문제 대응 전략</strong>
+    <p>이전 백엔드에서 보인 운영/성능/보안 위험을 새 구조에서 어떻게 줄일지 정리합니다.</p>
+  </a>
   <a class="doc-card" href="../legacy-db-inference/">
     <span class="doc-card__eyebrow">Legacy</span>
     <strong>기존 DB 구조</strong>
-    <p>이전 백엔드 domain 기준 기존 DB 구조입니다.</p>
+    <p>이전 백엔드 domain에서 추정한 DB 구조이며, 현재 구현의 기준이 아니라 참고 자료입니다.</p>
   </a>
   <a class="doc-card" href="../mvp-db-design/">
     <span class="doc-card__eyebrow">Database</span>
@@ -39,8 +44,9 @@
 
 ## 설계 원칙
 
-- 기존 서비스의 핵심 조회 패턴은 유지합니다.
+- 사용자에게 익숙한 공개 화면 흐름은 유지하되, 내부 구조는 새 기준으로 설계합니다.
 - `song`과 `chart`를 분리합니다.
 - DB foreign key constraint는 만들지 않습니다.
 - 참조 정합성은 애플리케이션 검증, unique key, index, 정합성 점검 쿼리로 보완합니다.
 - 대량 데이터 이전은 Flyway가 아니라 별도 job/script로 분리합니다.
+- 긴 갱신, 집계, 외부 I/O는 요청 경로와 분리하고 job/worker 기준으로 설계합니다.

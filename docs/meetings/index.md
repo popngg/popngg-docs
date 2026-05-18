@@ -12,6 +12,7 @@
 | 2 | [songhash 생성 규칙](songhash.md) | 장르명/곡명/작곡가/Upper/버전 중 어떤 값을 식별자 seed로 사용할지 |
 | 3 | [Upper 모델링](upper-modeling.md) | Upper를 같은 song의 chart로 둘지, 별도 song으로 둘지 |
 | 4 | [LONG POP ON/OFF](long-pop.md) | LONG POP ON/OFF 상태에 따라 score와 popclass가 어떻게 저장/적용되는지 |
+| 5 | [곡 검색 API와 라이브서치](song-search.md) | 검색 책임을 백엔드로 옮길 때 Redis/read model/API 응답/장애 대응을 어떻게 설계할지 |
 
 ## 회의 운영 방식
 
@@ -25,4 +26,5 @@
 - [데이터 모델링](../data-modeling.md)
 - [API 설계](../api-design.md)
 - [API Reference](../api-reference.md)
+- [운영과 배포](../operations.md)
 - [LLM 컨텍스트](../llm-context.md)

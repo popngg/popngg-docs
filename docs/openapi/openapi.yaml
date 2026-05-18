@@ -11,6 +11,7 @@ info:
       - 모든 경로는 `/api/v1` prefix 아래에 둡니다.
       - 랭크는 서버가 점수로 계산하지 않고 갱신 원천 데이터에서 수집한 값을 저장합니다.
       - `song`과 `chart`는 분리하지만, 프론트가 쓰기 쉽게 GroupChart 응답을 제공합니다.
+      - `songHash`는 변경될 수 있는 외부 조회 alias이며, 변경 API와 내부 참조는 `songId`, `chartId`를 우선 사용합니다.
       - API 응답은 code와 label을 함께 제공해 프론트 표시 가공을 줄입니다.
       - 비밀번호, reset token 원문, JWT secret은 응답/로그에 노출하지 않습니다.
 servers:
@@ -24,14 +25,16 @@ tags:
   - name: Auth
     description: 로그인, 인증 확인, 비밀번호 복구
   - name: Constants
-    description: 랭크, 메달, 난이도 등 프론트 표시 상수
-  - name: Chart
+    description: 랭크, 메달, 난이도 등 게임 코드/표시 정책
+  - name: Songs
     description: 곡과 채보 조회/업로드
-  - name: User
+  - name: Charts
+    description: chart detail and rankings
+  - name: Users
     description: 유저 프로필, 비밀번호, 유저 랭킹
   - name: Playdata
     description: 플레이데이터 갱신, 조회, 집계
-  - name: Image
+  - name: Assets
     description: 자켓과 프로필 이미지 업로드/조회
   - name: Admin
     description: 관리자 전용 API 후보
@@ -40,10 +43,11 @@ x-tagGroups:
     tags:
       - Health
       - Constants
-      - Chart
-      - User
+      - Songs
+      - Charts
+      - Users
       - Playdata
-      - Image
+      - Assets
   - name: Account
     tags:
       - Auth
@@ -159,20 +163,20 @@ paths:
     get:
       tags:
         - Constants
-      summary: 표시 상수 조회
+      summary: 게임 코드/표시 정책 조회
       operationId: getConstants
       responses:
         "200":
-          description: 랭크, 메달, 난이도 상수
+          description: 랭크, 메달, 난이도 코드표와 표시명
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConstantsResponse"
 
-  /chart:
+  /songs:
     post:
       tags:
-        - Chart
+        - Songs
       summary: 차트 업로드
       description: 관리자용 곡/채보 등록 API입니다.
       operationId: createChart
@@ -196,10 +200,9 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /chart/all:
     get:
       tags:
-        - Chart
+        - Songs
       summary: 모든 GroupChart 정보
       operationId: getAllGroupedCharts
       parameters:
@@ -221,10 +224,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/GroupedChartListResponse"
 
-  /chart/recent:
+  /songs/recent:
     get:
       tags:
-        - Chart
+        - Songs
       summary: 최신 차트
       description: 메인페이지 최신 추가 곡 목록입니다.
       operationId: getRecentCharts
@@ -246,14 +249,15 @@ paths:
               schema:
                 $ref: "#/components/schemas/GroupedChartListResponse"
 
-  /chart/{songHash}:
+  /songs/{songId}:
     get:
       tags:
-        - Chart
+        - Songs
       summary: 특정 노래 GroupChart 정보
+      description: songHash alias로 조회합니다. 응답의 songId를 이후 변경/이미지/히스토리 API 기준으로 사용합니다.
       operationId: getGroupedChart
       parameters:
-        - $ref: "#/components/parameters/SongHash"
+        - $ref: "#/components/parameters/SongId"
       responses:
         "200":
           description: 곡 단위 그룹 차트 상세
@@ -264,15 +268,15 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /chart/{songHash}/{difficulty}:
+  /charts/{chartId}:
     get:
       tags:
-        - Chart
+        - Charts
       summary: 특정 채보 정보
+      description: songHash alias로 조회합니다. 내부 참조와 변경 API는 응답의 songId/chartId를 우선 사용합니다.
       operationId: getChart
       parameters:
-        - $ref: "#/components/parameters/SongHash"
-        - $ref: "#/components/parameters/DifficultyPath"
+        - $ref: "#/components/parameters/ChartId"
       responses:
         "200":
           description: 채보 상세
@@ -283,10 +287,10 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /user/{poptomoId}:
+  /users/{poptomoId}:
     get:
       tags:
-        - User
+        - Users
       summary: 유저 프로필 페이지 정보
       operationId: getUserProfile
       parameters:
@@ -304,7 +308,7 @@ paths:
           $ref: "#/components/responses/NotFound"
     patch:
       tags:
-        - User
+        - Users
       summary: 유저 프로필 편집
       operationId: updateUserProfile
       security:
@@ -329,10 +333,10 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /user/password:
+  /users/me/password:
     patch:
       tags:
-        - User
+        - Users
       summary: 비밀번호 변경
       operationId: updatePassword
       security:
@@ -355,10 +359,10 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /user/email:
+  /users/me/email:
     patch:
       tags:
-        - User
+        - Users
       summary: 비밀번호 복구용 이메일 등록/변경
       operationId: updateEmail
       security:
@@ -377,10 +381,10 @@ paths:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
 
-  /user/ranking:
+  /users/rankings:
     get:
       tags:
-        - User
+        - Users
       summary: 유저 목록 페이지
       operationId: getUserRanking
       parameters:
@@ -411,7 +415,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserRankingResponse"
 
-  /playdata:
+  /playdata/imports:
     post:
       tags:
         - Playdata
@@ -436,11 +440,12 @@ paths:
         "400":
           $ref: "#/components/responses/BadRequest"
 
-  /playdata/count/{poptomoId}:
+  /users/{poptomoId}/playdata/counts:
     get:
       tags:
         - Playdata
       summary: 레벨/난이도별 메달 또는 랭크 개수
+      description: 기본 응답은 현재 버전 베스트와 역대 베스트 집계를 함께 제공합니다. 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있습니다.
       operationId: countPlaydata
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
@@ -472,11 +477,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlaydataCountResponse"
 
-  /playdata/popclass/{poptomoId}:
+  /users/{poptomoId}/playdata/popclass:
     get:
       tags:
         - Playdata
       summary: 유저 팝클표
+      description: display popclass 계산은 현재 버전 기준이지만, 응답에 포함되는 playdata는 `versionBestTop50`와 `allTimeBestTop50`를 함께 제공합니다.
       operationId: getPopclassTable
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
@@ -489,11 +495,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/PopclassResponse"
 
-  /playdata/all/{poptomoId}:
+  /users/{poptomoId}/playdata:
     get:
       tags:
         - Playdata
       summary: 유저의 전체 데이터
+      description: 기본 응답은 `versionBest`와 `allTimeBest`를 분리해 함께 제공합니다. 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있습니다.
       operationId: getAllPlaydata
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
@@ -511,19 +518,17 @@ paths:
               schema:
                 $ref: "#/components/schemas/UserPlaydataResponse"
 
-  /playdata/main:
+  /charts/{chartId}/summary:
     get:
       tags:
-        - Playdata
+        - Charts
       summary: 특정 차트 페이지 정보 모두 불러오기
-      description: 차트 상세 페이지에서 필요한 차트 정보, 랭킹, 내 기록, 히스토리 요약을 한 번에 내려주는 aggregation API 후보입니다.
+      description: 차트 상세 페이지에서 필요한 차트 정보, 현재 버전/역대 랭킹, 내 현재 버전/역대 기록, 히스토리 요약을 한 번에 내려주는 aggregation API 후보입니다.
       operationId: getChartMainPlaydata
       parameters:
-        - $ref: "#/components/parameters/SongHashQuery"
-        - $ref: "#/components/parameters/DifficultyCodeQueryRequired"
+        - $ref: "#/components/parameters/ChartId"
         - $ref: "#/components/parameters/BestType"
         - $ref: "#/components/parameters/TargetVersion"
-        - $ref: "#/components/parameters/IsUpper"
         - name: rankingLimit
           in: query
           schema:
@@ -545,27 +550,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ChartMainResponse"
 
-  /playdata/history/{poptomoId}/{songHash}:
+  /users/{poptomoId}/playdata/charts/{chartId}/history:
     get:
       tags:
         - Playdata
-      summary: 유저의 특정 곡 히스토리
+      summary: 유저의 특정 채보 히스토리
+      description: 기본 응답은 `versionBestHistories`와 `allTimeBestHistories`를 분리해 함께 제공합니다. 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있습니다.
       operationId: getPlaydataHistory
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
-        - $ref: "#/components/parameters/SongHash"
-        - name: difficulty
-          in: query
-          schema:
-            type: integer
-            enum:
-              - 1
-              - 2
-              - 3
-              - 4
+        - $ref: "#/components/parameters/ChartId"
         - $ref: "#/components/parameters/BestType"
         - $ref: "#/components/parameters/TargetVersion"
-        - $ref: "#/components/parameters/IsUpper"
       responses:
         "200":
           description: 플레이데이터 히스토리
@@ -574,11 +570,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/PlaydataHistoryResponse"
 
-  /playdata/versus:
+  /playdata/compare:
     get:
       tags:
         - Playdata
       summary: 여러 유저 플레이데이터 비교
+      description: 기본 응답은 사용자별 현재 버전 베스트와 역대 베스트를 함께 제공합니다. 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있습니다.
       operationId: comparePlaydata
       parameters:
         - name: poptomoIds
@@ -603,16 +600,16 @@ paths:
               schema:
                 $ref: "#/components/schemas/VersusPlaydataResponse"
 
-  /image/jacket/{songHash}:
+  /songs/{songId}/jacket:
     post:
       tags:
-        - Image
+        - Assets
       summary: 자켓 업로드
       operationId: uploadJacket
       security:
         - bearerAuth: []
       parameters:
-        - $ref: "#/components/parameters/SongHash"
+        - $ref: "#/components/parameters/SongId"
       requestBody:
         required: true
         content:
@@ -629,10 +626,10 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
-  /image/user:
+  /users/me/image:
     post:
       tags:
-        - Image
+        - Assets
       summary: 프로필 이미지 업로드
       operationId: uploadUserImage
       security:
@@ -650,6 +647,81 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ImageUploadResponse"
+
+  /admin/songs/{songId}:
+    patch:
+      tags:
+        - Admin
+      summary: 곡 메타데이터 보정
+      description: 장르명, 제목, 작곡가, 버전, 자켓 정보를 보정합니다. songHash가 바뀔 수 있으므로 대상은 songId로 지정합니다.
+      operationId: updateSongMetadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/SongId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSongMetadataRequest"
+      responses:
+        "200":
+          description: 곡 메타데이터 보정 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateSongMetadataResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /charts/{chartId}/rankings:
+    get:
+      tags:
+        - Charts
+      summary: 곡별 랭킹
+      description: 차트 상세에서 필요한 version best/all-time best 랭킹을 독립 조회합니다.
+      operationId: getChartRankings
+      parameters:
+        - $ref: "#/components/parameters/ChartId"
+        - $ref: "#/components/parameters/BestType"
+        - $ref: "#/components/parameters/TargetVersion"
+        - name: rankingLimit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+      responses:
+        "200":
+          description: 차트 랭킹 데이터
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  message:
+                    type: string
+                  data:
+                    type: object
+                    properties:
+                      chart:
+                        $ref: "#/components/schemas/ChartResponse"
+                      versionBestRankings:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/RankingItem"
+                      allTimeBestRankings:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/RankingItem"
 
   /admin/migrations/status:
     get:
@@ -684,7 +756,32 @@ components:
         type: string
         minLength: 32
         maxLength: 32
+      description: 변경될 수 있는 외부 조회 alias입니다. 내부 참조나 변경 API 대상 식별자로 사용하지 않습니다.
       example: "2302440c63cbe103703f3de51ac205da"
+    SongId:
+      name: songId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: 변경되지 않는 내부 곡 식별자입니다.
+    ChartId:
+      name: chartId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: 변경되지 않는 내부 채보 식별자입니다.
+    ChartIdQuery:
+      name: chartId
+      in: query
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: 변경되지 않는 내부 채보 식별자입니다.
     SongHashQuery:
       name: songHash
       in: query
@@ -784,8 +881,7 @@ components:
         enum:
           - VERSION_BEST
           - ALL_TIME_BEST
-        default: VERSION_BEST
-      description: 현재 버전 베스트 또는 역대 베스트 조회 스코프입니다.
+      description: 현재 버전 베스트 또는 역대 베스트 조회 스코프입니다. 생략 시 두 스코프를 함께 내려주고, 필요할 때만 특정 스코프로 좁힙니다.
     TargetVersion:
       name: targetVersion
       in: query
@@ -1110,12 +1206,55 @@ components:
               properties:
                 songHash:
                   type: string
+                songId:
+                  type: integer
+                  format: int64
                 createdChartCount:
                   type: integer
                 updatedChartCount:
                   type: integer
                 skippedChartCount:
                   type: integer
+
+    UpdateSongMetadataRequest:
+      type: object
+      description: null은 값을 비우는 의미이고, 필드 생략은 변경하지 않는 의미입니다.
+      properties:
+        genreName:
+          type: string
+          description: 장르명이 없던 기존 곡은 제목과 같은 문자열이 들어가 있을 수 있습니다.
+        songName:
+          type: string
+        artistName:
+          type: string
+          nullable: true
+        version:
+          type: integer
+          description: 원곡 또는 곡 그룹의 최초 수록 버전입니다.
+        jacketUrl:
+          type: string
+          nullable: true
+    UpdateSongMetadataResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                songId:
+                  type: integer
+                  format: int64
+                oldSongHash:
+                  type: string
+                  nullable: true
+                newSongHash:
+                  type: string
+                  nullable: true
+                songHashChanged:
+                  type: boolean
+                searchIndexRebuildRequired:
+                  type: boolean
 
     GroupedChartListResponse:
       allOf:
@@ -1148,8 +1287,12 @@ components:
     GroupedChart:
       type: object
       properties:
+        songId:
+          type: integer
+          format: int64
         songHash:
           type: string
+          description: 변경될 수 있는 외부 조회 alias입니다.
         genreName:
           type: string
         songName:
@@ -1344,10 +1487,20 @@ components:
         - rankCode
         - medalCode
       properties:
+        chartId:
+          type: integer
+          format: int64
+          nullable: true
+          description: 있으면 chart 매칭에 가장 우선 사용합니다.
+        songId:
+          type: integer
+          format: int64
+          nullable: true
+          description: chartId가 없고 song 단위 식별이 가능한 경우 사용합니다.
         songHash:
           type: string
           nullable: true
-          description: 있으면 chart 매칭에 가장 우선 사용합니다.
+          description: 외부 alias fallback입니다. 변경될 수 있으므로 내부 참조 기준으로 사용하지 않습니다.
         genreName:
           type: string
           nullable: true
@@ -1482,12 +1635,10 @@ components:
               properties:
                 user:
                   $ref: "#/components/schemas/UserProfile"
-                playdata:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/PlaydataItem"
-                page:
-                  $ref: "#/components/schemas/PageInfo"
+                versionBest:
+                  $ref: "#/components/schemas/ScopedPlaydataPage"
+                allTimeBest:
+                  $ref: "#/components/schemas/ScopedPlaydataPage"
     PopclassResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -1507,14 +1658,10 @@ components:
                 toNext:
                   type: integer
                   nullable: true
-                top50:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/PlaydataItem"
-                buckets:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/PopclassBucket"
+                versionBestTop50:
+                  $ref: "#/components/schemas/ScopedPlaydataBucketed"
+                allTimeBestTop50:
+                  $ref: "#/components/schemas/ScopedPlaydataPageLite"
     PopclassBucket:
       type: object
       properties:
@@ -1545,31 +1692,10 @@ components:
                   enum:
                     - rank
                     - medal
-                bestType:
-                  type: string
-                  enum:
-                    - VERSION_BEST
-                    - ALL_TIME_BEST
-                targetVersion:
-                  type: integer
-                levels:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      level:
-                        type: integer
-                      counts:
-                        type: array
-                        items:
-                          type: object
-                          properties:
-                            code:
-                              type: integer
-                            label:
-                              type: string
-                            count:
-                              type: integer
+                versionBestCounts:
+                  $ref: "#/components/schemas/ScopedPlaydataCounts"
+                allTimeBestCounts:
+                  $ref: "#/components/schemas/ScopedPlaydataCounts"
     ChartMainResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -1580,14 +1706,25 @@ components:
               properties:
                 chart:
                   $ref: "#/components/schemas/ChartDetail"
-                rankings:
+                versionBestRankings:
                   type: array
                   items:
                     $ref: "#/components/schemas/RankingItem"
-                myPlaydata:
+                allTimeBestRankings:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/RankingItem"
+                myVersionBest:
                   $ref: "#/components/schemas/PlaydataItem"
                   nullable: true
-                recentHistories:
+                myAllTimeBest:
+                  $ref: "#/components/schemas/PlaydataItem"
+                  nullable: true
+                versionBestRecentHistories:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PlaydataHistoryItem"
+                allTimeBestRecentHistories:
                   type: array
                   items:
                     $ref: "#/components/schemas/PlaydataHistoryItem"
@@ -1640,10 +1777,90 @@ components:
                   $ref: "#/components/schemas/GroupedChart"
                 chart:
                   $ref: "#/components/schemas/ChartSummary"
-                histories:
+                versionBestHistories:
                   type: array
                   items:
                     $ref: "#/components/schemas/PlaydataHistoryItem"
+                allTimeBestHistories:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/PlaydataHistoryItem"
+    ScopedPlaydataPage:
+      type: object
+      properties:
+        bestType:
+          type: string
+          enum:
+            - VERSION_BEST
+            - ALL_TIME_BEST
+        targetVersion:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaydataItem"
+        page:
+          $ref: "#/components/schemas/PageInfo"
+    ScopedPlaydataPageLite:
+      type: object
+      properties:
+        bestType:
+          type: string
+          enum:
+            - VERSION_BEST
+            - ALL_TIME_BEST
+        targetVersion:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaydataItem"
+    ScopedPlaydataBucketed:
+      type: object
+      properties:
+        bestType:
+          type: string
+          enum:
+            - VERSION_BEST
+            - ALL_TIME_BEST
+        targetVersion:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlaydataItem"
+        buckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/PopclassBucket"
+    ScopedPlaydataCounts:
+      type: object
+      properties:
+        bestType:
+          type: string
+          enum:
+            - VERSION_BEST
+            - ALL_TIME_BEST
+        targetVersion:
+          type: integer
+        levels:
+          type: array
+          items:
+            type: object
+            properties:
+              level:
+                type: integer
+              counts:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: integer
+                    label:
+                      type: string
+                    count:
+                      type: integer
     PlaydataHistoryItem:
       type: object
       properties:
@@ -1689,7 +1906,17 @@ components:
                     $ref: "#/components/schemas/GroupedChart"
                   chart:
                     $ref: "#/components/schemas/ChartSummary"
-                  users:
+                  versionBestUsers:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        poptomoId:
+                          type: string
+                        playdata:
+                          $ref: "#/components/schemas/PlaydataItem"
+                          nullable: true
+                  allTimeBestUsers:
                     type: array
                     items:
                       type: object

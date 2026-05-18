@@ -1,6 +1,6 @@
 # 코드 컨벤션
 
-이 문서는 리팩토링 이후에도 같은 스타일로 개발하기 위한 기준입니다. 새 기능을 추가할 때는 기존 코드가 이미 정해 둔 멀티모듈, use case, port/adapter, DTO 분리 방식을 유지합니다.
+이 문서는 리팩토링 이후에도 같은 스타일로 개발하기 위한 기준입니다. 새 기능을 추가할 때는 새 문서에서 정한 멀티모듈, use case, port/adapter, DTO 분리 방식을 우선 적용하고, 레거시 코드는 참고만 합니다.
 
 ## 백엔드 구조
 
@@ -28,6 +28,40 @@ popn.gg 백엔드는 헥사고널 아키텍처를 기준으로 개발합니다.
 - Infra는 DB, security, 외부 연동 adapter를 담당합니다.
 - application은 port interface를 호출하고, infra가 adapter로 구현합니다.
 - 새 기능은 Controller에서 바로 Repository로 내려가지 않고 반드시 use case를 거칩니다.
+
+## Java 스타일
+
+- Java 17 문법을 기준으로 합니다.
+- DTO, Command, Query, Result/View처럼 값 전달이 목적인 객체는 `record`를 우선 검토합니다.
+- JPA Entity는 `record`를 사용하지 않습니다.
+- mutable 객체는 필요한 곳에서만 사용하고, domain value object는 가능하면 immutable로 둡니다.
+- `var`는 사용하지 않습니다. 타입이 읽히는 편이 리뷰와 온보딩에 유리합니다.
+- `Optional`은 반환 타입에 사용하고, field나 request/response DTO field에는 사용하지 않습니다.
+- collection 반환은 `null` 대신 빈 collection을 사용합니다.
+- public method 인자는 `null` 허용 여부를 validation 또는 타입으로 드러냅니다.
+- magic number/string은 enum, constant, policy object로 이동합니다.
+- `System.out.println`은 사용하지 않고 logger를 사용합니다.
+
+## 이름 규칙
+
+| 대상 | 규칙 | 예시 |
+| --- | --- | --- |
+| UseCase | 동사 + 대상 + `UseCase` | `RenewPlaydataUseCase` |
+| Application service | UseCase 이름과 맞추고 `Service` 접미사 | `RenewPlaydataService` |
+| Command | 상태 변경 의도 + `Command` | `ChangePasswordCommand` |
+| Query | 조회 의도 + `Query` | `FindSongSearchQuery` |
+| Result | 상태 변경 결과 + `Result` | `LoginResult` |
+| View | 조회 결과 + `View` | `SongSearchView` |
+| Port | 목적 + `Port` | `FindSongSearchPort` |
+| Adapter | 기술/대상 + `Adapter` | `RedisSongSearchAdapter` |
+| Entity | DB 대상 + `Entity` | `SongEntity` |
+| Mapper | 경계 + `Mapper` | `SongApiMapper`, `SongPersistenceMapper` |
+
+금지:
+
+- `Manager`, `Processor`, `Handler`처럼 역할이 넓은 이름은 피합니다.
+- `CommonService`, `UtilService`처럼 책임이 모호한 service를 만들지 않습니다.
+- Entity 이름을 API response 이름으로 재사용하지 않습니다.
 
 ## 패키지 배치 기준
 
@@ -105,6 +139,48 @@ Entity <-> Domain/Result/View는 infra adapter 내부에서만 변환
 - `Response`는 프론트 표시 편의를 고려해 code, label, sortOrder, displayName 같은 값을 포함할 수 있습니다.
 - `Entity`를 `Response`로 직접 변환하지 않습니다. 반드시 use case 출력 모델을 거칩니다.
 
+DTO 예시:
+
+```java
+public record SongSearchResponse(
+        List<SongSearchItemResponse> items,
+        SearchMetaResponse meta
+) {
+}
+```
+
+Command/Query 예시:
+
+```java
+public record SearchSongsQuery(
+        String keyword,
+        int limit
+) {
+}
+```
+
+## Validation 규칙
+
+- 형식 검증은 API request DTO에서 수행합니다.
+- 비즈니스 검증은 application/domain에서 수행합니다.
+- 같은 검증을 Controller와 Service에 흩뿌리지 않습니다.
+- 외부 id 형식은 값 객체 또는 validator로 모읍니다.
+- validation message에는 민감정보를 포함하지 않습니다.
+
+예:
+
+```java
+public record SearchSongsRequest(
+        @Size(max = 100)
+        String q,
+
+        @Min(1)
+        @Max(30)
+        Integer limit
+) {
+}
+```
+
 ## UseCase 작성 규칙
 
 UseCase는 기능 단위 interface로 작성합니다.
@@ -132,6 +208,29 @@ public class FindGroupChartService implements FindGroupChartUseCase {
 - 조회 use case는 `readOnly = true`를 우선합니다.
 - 외부 adapter 실패는 application에서 의미 있는 예외로 변환합니다.
 - Controller에서 여러 use case를 조합해 화면 데이터를 억지로 만들지 않습니다. 화면 단위 aggregation이 필요하면 별도 조회 use case를 만듭니다.
+- 오래 걸리는 갱신/집계/외부 I/O는 request use case와 processing use case를 분리하고, 필요하면 job id를 반환합니다.
+
+트랜잭션 기준:
+
+| 작업 | 기준 |
+| --- | --- |
+| 단순 조회 | `@Transactional(readOnly = true)` |
+| 상태 변경 | application service method에 transaction 선언 |
+| 긴 갱신 | job/chunk 단위로 transaction을 짧게 유지 |
+| 외부 호출 포함 | DB transaction 안에서 오래 잡지 않도록 순서 분리 |
+| 이벤트/후처리 | transaction commit 이후 실행 여부 검토 |
+
+긴 작업 예시:
+
+```text
+SubmitRenewJobUseCase
+  -> job 생성
+  -> job id 반환
+
+ProcessRenewJobUseCase
+  -> worker가 실행
+  -> chunk 단위 저장
+```
 
 ## Port / Adapter 규칙
 
@@ -165,6 +264,21 @@ SmtpMailAdapter implements MailPort
 - application service는 `JpaRepository`, `EntityManager`, `JPAQueryFactory`, `JavaMailSender`를 직접 참조하지 않습니다.
 - Querydsl 최적화는 infra adapter 내부에 둡니다.
 
+Port 분리 기준:
+
+| 상황 | 기준 |
+| --- | --- |
+| 읽기와 쓰기 책임이 다름 | `Find...Port`, `Save...Port`로 분리 |
+| 외부 시스템이 다름 | 별도 port |
+| 테스트 fake가 복잡해짐 | port가 너무 넓은지 점검 |
+| 기술 변경 가능성이 큼 | application port로 감춤 |
+
+Adapter 예외 처리:
+
+- 외부 기술 예외를 그대로 application 밖으로 던지지 않습니다.
+- timeout, connection failure, duplicate key, not found를 application 의미로 변환합니다.
+- 변환 전 원인 예외는 로그나 cause로 추적 가능하게 둡니다.
+
 ## 도메인 규칙
 
 도메인 값은 primitive만 넘겨 다니지 않도록 점진적으로 값 객체를 사용합니다.
@@ -173,6 +287,7 @@ SmtpMailAdapter implements MailPort
 
 ```text
 PoptomoId
+SongId
 SongHash
 ChartId
 Score
@@ -184,11 +299,50 @@ Popclass
 
 게임 정책:
 
+- `SongHash`는 외부 조회 alias 값 객체로만 사용하고, 내부 영속 참조는 `SongId`/`ChartId`를 우선합니다.
 - 랭크는 score에서 계산하지 않습니다.
 - rank, medal, difficulty는 내부 code와 표시 label을 분리합니다.
-- LONG POP ON/OFF는 메달로 파악하되, score/popclass 반영 방식은 검증 전까지 임의 보정하지 않습니다.
+- LONG POP ON/OFF는 메달로 파악합니다.
+- 실험 기준으로는 더 높은 score를 유지하면서 medal만 바뀔 수 있으므로, score와 medal이 항상 같은 플레이에서 동시에 갱신된다고 가정하지 않습니다.
+- popclass 반영 방식은 추가 실험 전까지 임의 보정하지 않습니다.
 - 짠판정/짠게이지는 chart metadata로 저장할 수 있게 유지합니다.
 - High☆Cheers처럼 버전별 정책이 바뀌는 값은 하드코딩보다 enum, policy object, constant table을 우선 검토합니다.
+
+값 객체 기준:
+
+- 값 범위가 있는 primitive는 값 객체 후보입니다.
+- 외부 식별자와 내부 DB id는 타입이나 이름으로 구분합니다.
+- 값 객체 생성 시점에 유효성 검증을 수행합니다.
+- 표시 label은 domain 값과 분리합니다. 예: `RankCode`와 `RankLabel`
+
+## Mapper 규칙
+
+- API mapper는 `api` 모듈에 둡니다.
+- Persistence mapper는 `infra` 모듈에 둡니다.
+- application service 안에서 HTTP response를 만들지 않습니다.
+- Controller 안에서 Entity를 만지지 않습니다.
+- mapper가 비즈니스 계산을 하지 않습니다.
+
+권장 흐름:
+
+```text
+Request DTO
+  -> ApiMapper
+  -> Command/Query
+  -> UseCase
+  -> Result/View
+  -> ApiMapper
+  -> Response DTO
+```
+
+## Logging 규칙
+
+- logger는 class별로 선언합니다.
+- password, reset token 원문, JWT secret, authorization header는 로그에 남기지 않습니다.
+- 외부 API 응답 원문은 기본적으로 저장하지 않습니다.
+- job id, trace id, user id, poptomo id처럼 추적 가능한 최소 정보만 남깁니다.
+- 반복 루프 안에서 과도한 info log를 찍지 않습니다.
+- 운영에서 필요한 이벤트는 structured field로 남길 수 있게 메시지를 고정합니다.
 
 ## API 응답 규칙
 
@@ -208,6 +362,24 @@ Popclass
 - 외부 시스템 실패, 인증 실패, 검증 실패, 데이터 없음은 서로 다른 error code를 사용합니다.
 - 비밀번호, reset token, JWT, 외부 응답 원문은 에러 메시지에 포함하지 않습니다.
 
+예외 위치:
+
+| 위치 | 예외 |
+| --- | --- |
+| Domain | 값/정책 위반 |
+| Application | use case 실패, 권한 없는 행위, 상태 충돌 |
+| Infra | 기술 예외를 application 예외로 변환하기 전까지만 |
+| API | validation, HTTP status 변환 |
+
+## 비동기와 Job 규칙
+
+- `@Async`는 가벼운 후처리에만 제한적으로 사용합니다.
+- 대량 갱신, 대량 집계, 외부 파일 처리는 job으로 표현합니다.
+- job은 상태, 시작/종료 시각, 실패 사유, retry count를 추적합니다.
+- 같은 유저/같은 대상에 대한 중복 job 실행을 막습니다.
+- worker는 chunk 단위로 처리하고, 실패 chunk를 추적 가능하게 남깁니다.
+- job 처리 중 사용자에게 노출할 상태 API를 함께 설계합니다.
+
 ## 테스트 기준
 
 테스트는 계층별 책임에 맞춰 작성합니다.
@@ -225,8 +397,9 @@ Popclass
 
 - HTTP DTO와 JPA Entity를 직접 섞지 않습니다.
 - Request/Response DTO를 application service 입력/출력으로 그대로 넘기지 않습니다.
+- request thread에서 대량 갱신, 대량 집계, S3/외부 HTTP 작업을 길게 수행하지 않습니다.
 - 랭크는 score에서 계산하지 않습니다.
 - 비밀번호, reset token, JWT secret은 로그에 남기지 않습니다.
 - 운영에 적용된 Flyway `V*.sql`은 수정하지 않습니다.
-- 기존 코드가 이미 쓰는 naming, package, mapper 스타일이 있으면 새 스타일을 만들기보다 기존 방식을 확장합니다.
+- 레거시 naming, package, mapper 스타일이 있더라도 새 기준과 충돌하면 새 기준을 우선합니다.
 - 문서와 코드가 충돌하면 구현 전에 문서를 갱신하거나 ADR에 예외를 남깁니다.

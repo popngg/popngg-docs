@@ -2,6 +2,12 @@
 
 이 문서는 이전 백엔드 저장소의 `domain`, `repository`, `service`, `dto` 코드를 읽고 정리한 기존 DB 구조입니다.
 
+주의:
+
+- 이 문서는 신규 설계 기준이 아니라 레거시 구조 참고 자료입니다.
+- 여기의 nullable, unique, 조회 조건, `song_hash` 생성 방식은 새 프로젝트의 확정 스키마가 아닙니다.
+- 신규 기준은 [MVP DB 설계](mvp-db-design.md), [데이터 모델링 회의](meetings/data-modeling.md), [곡 검색 API와 라이브서치](meetings/song-search.md)를 우선합니다.
+
 참고한 주요 파일:
 
 - `src/main/java/gg/popn/popngg/domain/Chart.java`
@@ -178,7 +184,7 @@ user.popclass = floor(sum(top50PlaydataPopclass) / 50)
 | `is_register` | INT | NULL | 최초 등록 여부 |
 | `failure_reason` | VARCHAR | NULL | 실패 사유 |
 | `chart_count` | INT | NULL | 입력 플레이데이터 수 |
-| `ip` | VARCHAR | NULL | IP. TODO 상태 |
+| `ip` | VARCHAR | NULL | IP. 레거시 코드상 미완성으로 보이는 상태 |
 
 ## login_log
 
@@ -192,7 +198,7 @@ user.popclass = floor(sum(top50PlaydataPopclass) / 50)
 | `"password"` | VARCHAR | NULL | 시도한 비밀번호 |
 | `is_succeeded` | INT | NULL | 성공 여부 |
 | `failure_reason` | VARCHAR | NULL | 실패 사유 |
-| `ip` | VARCHAR | NULL | IP. TODO 상태 |
+| `ip` | VARCHAR | NULL | IP. 레거시 코드상 미완성으로 보이는 상태 |
 
 주의: 기존 코드가 로그인 실패/성공 로그에 입력 password를 저장합니다. 신규 설계에서는 저장하지 않아야 합니다.
 
