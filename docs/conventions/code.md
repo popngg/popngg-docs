@@ -1,5 +1,14 @@
 # 코드 컨벤션
 
+## Runtime Baseline
+
+JDK baseline은 `JDK 25`를 우선 검증하고, 호환성 문제가 있으면 `JDK 21`로 fallback합니다.
+
+- 현재 코드 baseline은 Java 17이지만, 신규 구현 기준은 JDK 25 spike 결과를 우선 반영합니다.
+- Spring baseline은 `Spring Boot 4.x / Spring Framework 7.x`를 우선 검증합니다.
+- 검증 전까지 JDK 25 전용 API를 도메인 핵심 로직에 넓게 퍼뜨리지 않습니다.
+- JDK 25 검증 항목은 Gradle build, Spring Boot 기동, Querydsl Q class 생성, JPA repository 테스트, springdoc Swagger UI, Docker image build입니다.
+
 이 문서는 리팩토링 이후에도 같은 스타일로 개발하기 위한 기준입니다. 새 기능을 추가할 때는 새 문서에서 정한 멀티모듈, use case, port/adapter, DTO 분리 방식을 우선 적용하고, 레거시 코드는 참고만 합니다.
 
 ## 백엔드 구조
@@ -279,6 +288,130 @@ Adapter 예외 처리:
 - timeout, connection failure, duplicate key, not found를 application 의미로 변환합니다.
 - 변환 전 원인 예외는 로그나 cause로 추적 가능하게 둡니다.
 
+## JPA 조회와 수정 전략
+
+JPA 최적화의 기본 목표는 “무조건 join을 많이 하는 것”이 아니라, use case가 필요한 데이터만 명확히 가져오는 것입니다.
+
+레거시에서 JPQL이 유의미했던 이유는 JPQL 자체가 특별히 빠르기 때문이 아니라, entity 전체 조회를 DTO projection으로 바꾸면서 필요한 필드만 한 번에 조회했고, 그 결과 N+1, lazy loading, entity hydration, Java DTO 변환 비용이 줄었기 때문입니다.
+
+새 프로젝트에서는 다음 기준을 우선합니다.
+
+| 상황 | 기본 전략 |
+| --- | --- |
+| 읽기 전용 목록 API | Querydsl 또는 JPQL DTO projection |
+| 동적 필터/정렬/페이지네이션 | Querydsl 우선 |
+| 고정 count/sum/group by | JPQL projection 또는 Querydsl |
+| 단건 수정 | 수정 대상 entity만 영속 상태로 조회 |
+| 단건 수정에서 연관 값이 필요 | 제한적으로 fetch join 또는 가벼운 projection |
+| 대량 import/update | 참조 데이터는 DTO projection으로 bulk 조회, 수정 대상만 최소 로딩 |
+| 복잡한 랭킹/통계/window function | native query 또는 summary table 검토 |
+
+### DTO Projection
+
+DTO projection은 읽기 전용 조회에 우선 사용합니다.
+
+```java
+public record PlaydataListItem(
+        Long chartId,
+        String songTitle,
+        Integer level,
+        Integer score,
+        Integer rankCode,
+        Integer medalCode,
+        Integer popclass
+) {
+}
+```
+
+사용 기준:
+
+- API 응답이나 화면용 view를 만들 때 사용합니다.
+- entity를 수정할 필요가 없는 조회에 사용합니다.
+- N+1을 피하고 필요한 컬럼만 조회하기 위해 사용합니다.
+- 목록 조회는 pagination 또는 limit을 함께 사용합니다.
+
+주의:
+
+- DTO는 영속 entity가 아니므로 값을 바꿔도 DB가 변경되지 않습니다.
+- 조회 결과를 다시 수정 흐름에 억지로 재사용하지 않습니다.
+- 화면 DTO와 persistence projection DTO를 무리하게 하나로 합치지 않습니다.
+
+### Fetch Join
+
+Fetch join은 entity graph를 한 번에 로딩하기 위한 도구입니다. 기본적으로 read API의 N+1 방지에 사용하되, 수정 use case에서도 연관 entity 상태가 반드시 필요하면 제한적으로 사용할 수 있습니다.
+
+사용해도 되는 경우:
+
+- 단건 또는 소량 entity 수정입니다.
+- 수정 대상 entity를 dirty checking으로 변경해야 합니다.
+- 연관 entity 값이 계산이나 검증에 반드시 필요합니다.
+
+예시:
+
+```java
+@Query("""
+    select p
+    from PlaydataEntity p
+    join fetch p.chart c
+    where p.user.id = :userId
+      and p.chart.id = :chartId
+""")
+Optional<PlaydataEntity> findForUpdateWithChart(Long userId, Long chartId);
+```
+
+위 예시는 `PlaydataEntity`를 수정하면서 `Chart.level`, `Chart.deleted` 같은 값이 같은 transaction 안에서 필요할 때만 사용합니다.
+
+주의:
+
+- collection fetch join은 목록 조회와 pagination에서 특히 조심합니다.
+- 대량 import에서 수천 개 entity graph를 fetch join으로 올리지 않습니다.
+- 수정에 필요하지 않은 연관 entity를 습관적으로 fetch join하지 않습니다.
+
+### 수정 Use Case
+
+Playdata의 일부 필드만 수정하고 연관 객체 값이 필요 없다면 Playdata만 영속 상태로 가져옵니다.
+
+```java
+PlaydataEntity playdata = playdataRepository.findById(playdataId)
+        .orElseThrow();
+
+playdata.updateScore(score, rankCode, medalCode);
+```
+
+이 경우 `playdata.getChart()`나 `playdata.getUser()`를 호출하지 않으면 lazy loading은 발생하지 않습니다.
+
+연관 값이 필요한 경우는 두 가지 중 하나를 선택합니다.
+
+1. 단건 수정이면 fetch join을 사용합니다.
+2. 대량 수정이면 필요한 값만 projection으로 bulk 조회합니다.
+
+대량 import 예시:
+
+```java
+public record ChartForPlaydataImport(
+        Long chartId,
+        String songHash,
+        Integer difficulty,
+        Integer level,
+        Integer chartVersion,
+        boolean deleted
+) {
+}
+```
+
+대량 import 흐름:
+
+```text
+1. 입력 row에서 chart matching key를 모읍니다.
+2. ChartForPlaydataImport를 bulk 조회합니다.
+3. 기존 Playdata key를 bulk 조회합니다.
+4. 변경이 필요한 Playdata만 수정하거나 insert합니다.
+5. history를 append합니다.
+6. popclass target을 재계산합니다.
+```
+
+이 흐름에서는 fetch join보다 projection과 chunk 처리, bulk upsert 전략이 중요합니다.
+
 ## 도메인 규칙
 
 도메인 값은 primitive만 넘겨 다니지 않도록 점진적으로 값 객체를 사용합니다.
@@ -299,6 +432,8 @@ Popclass
 
 게임 정책:
 
+- 유저 DB는 `users`와 `user_profiles` 2테이블 구조를 사용합니다. `users`는 계정/인증/권한, `user_profiles`는 공개 프로필/랭킹 표시 캐시/credit을 담당합니다.
+- application use case는 `Account`, `Profile`, `Ranking` 책임을 나누되, persistence adapter는 필요하면 같은 `UserPersistenceAdapter`에서 여러 port를 구현할 수 있습니다.
 - `SongHash`는 외부 조회 alias 값 객체로만 사용하고, 내부 영속 참조는 `SongId`/`ChartId`를 우선합니다.
 - 랭크는 score에서 계산하지 않습니다.
 - rank, medal, difficulty는 내부 code와 표시 label을 분리합니다.

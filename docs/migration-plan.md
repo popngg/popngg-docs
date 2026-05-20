@@ -27,6 +27,7 @@
 | Session 1. Schema Baseline | 신규 스키마와 보조 테이블 생성 | Flyway | 신규 테이블, 인덱스, seed 상수 |
 | Session 2. Identity Mapping | song/chart/user/playdata 매핑 기준 생성 | migration job/script | old/new id mapping, songhash mapping, 실패 row |
 | Session 3. Data Transform | 실제 데이터 변환 및 적재 | migration job/script | users, songs, charts, playdata, history 적재 결과 |
+| Session 3-1. Jacket Asset Migration | 기존 S3 자켓을 신규 songHash key로 재저장 | migration job/script | old/new jacket key mapping, 실패 object |
 | Session 4. Verification | row count, unique, 정합성 검증 | SQL/script | 검증 리포트, diff 리포트 |
 | Session 5. Cutover | 애플리케이션 라우팅 전환과 최종 싱크 | Jenkins/manual approval | 전환 로그, smoke test 결과 |
 | Session 6. Stabilization | 전환 후 보정과 관찰 | 운영 job/query | 오류 row 보정, 모니터링 결과 |
@@ -96,11 +97,14 @@ db/migration/
 - 기존 `playdata.chart_id`를 신규 `charts.chart_id`로 매핑하는 테이블 또는 파일 작성
 - 기존 `playdata`를 28버전 기록으로 변환하는 스크립트 작성
 - `playdata.best_type`, `playdata.target_version`, `playdata.score_version` 적재 정책 반영
-- 기존 playdata를 `ALL_TIME_BEST`로 적재한 뒤 `users.potential_popclass`를 계산하는 스크립트 작성
+- 기존 `"user"`를 `users`와 `user_profiles`로 분리 적재하는 스크립트 작성
+- 기존 playdata를 `ALL_TIME_BEST`로 적재한 뒤 `user_profiles.potential_popclass`를 계산하는 스크립트 작성
 - 기존 credit/코인수는 신규 High☆Cheers credit으로 매핑하지 않고 0으로 초기화
 - 기존 유저 비밀번호 저장값의 성격을 확인하고, 확정된 전환 방식에 따라 재해싱 또는 재설정 플로우 적용
 - old/new songhash 매핑 테이블 또는 산출물 생성
 - 곡 메타데이터 변경으로 songhash가 바뀔 경우를 대비해 old/new songhash alias 또는 redirect 정책 정의
+- 기존 S3 자켓 key가 `oldSongHash` 기반이면, 신규 `newSongHash` 기반 key로 copy/upload하는 asset migration script 작성
+- 자켓 migration은 기존 object를 삭제하거나 rename하지 않고, 신규 object 생성과 DB 참조 전환을 분리해서 수행
 - 실패 row 리포트 형식 정의
 
 대량 데이터 이전은 Flyway에 넣지 않는 것을 권장합니다. 데이터 양, 실행 시간, 실패 복구가 스키마 migration보다 훨씬 민감하기 때문입니다.
@@ -112,7 +116,8 @@ db/migration/
 | 세션 | Step 후보 |
 | --- | --- |
 | Identity Mapping | song dedupe, chart mapping, old/new songhash mapping, user mapping, Upper chart version mapping |
-| Data Transform | users 이전, password 전환 정책 적용, 기존 credit/코인수 0 초기화, songs/charts 적재, `songs.version`/`charts.chart_version` 분리, playdata 적재, history 적재, logs 이전 |
+| Data Transform | users/user_profiles 이전, password 전환 정책 적용, 기존 credit/코인수 0 초기화, songs/charts 적재, `songs.version`/`charts.chart_version` 분리, playdata 적재, history 적재, logs 이전 |
+| Jacket Asset Migration | 기존 S3 `oldSongHash` 자켓을 신규 `newSongHash` key로 copy/upload, `songs.jacket_url` 갱신, old/new jacket key mapping 저장 |
 | Playdata Transform | 기존 점수 `score_version = 28`, `ALL_TIME_BEST` 생성, 필요 시 28버전 `VERSION_BEST` 복제 |
 | Popclass Rebuild | `legacy_popclass` 보존, `potential_popclass` 계산, 필요 시 `display_popclass` 초기화 |
 | Verification | row count 비교, orphan check, unique violation check, popclass 재계산 diff |
@@ -135,16 +140,20 @@ db/migration/
 - 기존 곡 수와 신규 `songs` 수 비교
 - 기존 chart 수와 신규 `charts` 수 비교
 - `playdata` row count 비교
-- 유저 row count 비교
+- `users`와 `user_profiles` row count 비교
+- 모든 `users.user_id`에 대응하는 `user_profiles.user_id`가 있는지 확인
 - songhash 후보별 중복 여부 확인
 - 신규 unique 제약 위반 여부 확인
 - 비밀번호 복구 이메일 nullable/unique 동작 확인
 - 기존 `playdata`가 `score_version = 28`로 들어갔는지 확인
 - 현재 버전 `VERSION_BEST`와 `ALL_TIME_BEST` 스코프가 중복 없이 생성되는지 확인
-- `legacy_popclass`가 기존 `users.popclass`를 보존하는지 확인
+- `user_profiles.legacy_popclass`가 기존 `"user".popclass`를 보존하는지 확인
 - `potential_popclass`가 `ALL_TIME_BEST` 기준으로 계산되었는지 확인
 - `display_popclass`가 현재 버전 `VERSION_BEST` 기준으로 계산되는지 확인
 - 신규 credit 4종이 모두 0으로 초기화되었는지 확인. 기존 `normal/battle/local` 값이 임의로 섞이지 않았는지 확인
+- 모든 기존 자켓이 신규 `song_hash` 기반 S3 key로 생성되었는지 확인
+- `songs.jacket_url` 또는 `jacket_key`가 신규 key를 가리키는지 확인
+- 기존 S3 자켓 object는 검증/롤백 기간 동안 삭제되지 않았는지 확인
 
 ### 4-1. 팝클래스 재계산 검증
 
@@ -155,6 +164,8 @@ db/migration/
 | `legacy_popclass` | 기존 DB의 `user.popclass`와 동일해야 합니다. |
 | `potential_popclass` | 신규 `playdata`의 `ALL_TIME_BEST` 상위 50개 기준 계산값이어야 합니다. |
 | `display_popclass` | 현재 버전 `VERSION_BEST` 상위 50개 기준 계산값이어야 합니다. 전환 직후 현재 버전 기록이 없으면 0 또는 정책상 초기값을 사용합니다. |
+
+위 3개 컬럼은 `user_profiles`에 저장합니다.
 
 `potential_popclass`는 마이그레이션 완료 조건입니다. 기존 기록을 `ALL_TIME_BEST`로 적재했다면 반드시 한 번 계산해 저장해야 하며, 계산 실패 유저가 있으면 세션을 성공 처리하지 않습니다.
 

@@ -835,7 +835,7 @@ components:
       in: query
       schema:
         type: string
-      description: 곡명, 장르명, 아티스트 검색어
+      description: 곡명, 장르명, 아티스트, 검색 태그/별칭 검색어
     Version:
       name: version
       in: query

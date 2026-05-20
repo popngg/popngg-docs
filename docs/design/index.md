@@ -15,6 +15,11 @@
     <strong>레거시 문제 대응 전략</strong>
     <p>이전 백엔드에서 보인 운영/성능/보안 위험을 새 구조에서 어떻게 줄일지 정리합니다.</p>
   </a>
+  <a class="doc-card" href="../troubleshooting/">
+    <span class="doc-card__eyebrow">Troubleshooting</span>
+    <strong>트러블슈팅 기록</strong>
+    <p>레거시에서 겪은 성능, 갱신, 식별자, 운영 문제를 증상과 해결 흐름으로 남깁니다.</p>
+  </a>
   <a class="doc-card" href="../legacy-db-inference/">
     <span class="doc-card__eyebrow">Legacy</span>
     <strong>기존 DB 구조</strong>

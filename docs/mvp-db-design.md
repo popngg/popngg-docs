@@ -26,7 +26,7 @@
 
 ### MVP 이후
 
-- 검색 태그 기여
+- 곡 검색 태그 기여
 - 한국어 검색 태그 승인 플로우
 - 이메일 인증
 - 상세 모니터링 테이블
@@ -39,8 +39,10 @@ MVP에서는 다음 테이블을 제안합니다.
 
 | 테이블 | 역할 | 레거시 대응 |
 | --- | --- | --- |
-| `users` | 유저 계정과 프로필 | `"user"` |
+| `users` | 유저 계정, 인증, 권한 | `"user"` 일부 |
+| `user_profiles` | 공개 프로필, 랭킹 표시 캐시, credit | `"user"` 일부 |
 | `songs` | 곡 단위 메타데이터 | `chart` 일부 |
+| `song_search_tags` | 곡 검색용 태그/별칭 | 신규 |
 | `charts` | 난이도별 채보 메타데이터 | `chart` 일부 |
 | `playdata` | 유저별 채보 베스트 플레이데이터. 버전 베스트와 역대 베스트를 구분 | `playdata` |
 | `playdata_history` | 플레이데이터 변경 이력 | `history` |
@@ -61,21 +63,28 @@ erDiagram
     USERS {
         bigint user_id PK
         varchar poptomo_id UK
-        varchar user_name
         varchar password_hash
         varchar email UK
         datetime email_verified_at
+        varchar role
+        datetime created_at
+        datetime updated_at
+    }
+
+    USER_PROFILES {
+        bigint user_id PK
+        varchar user_name
+        varchar character_name
+        varchar comment
+        varchar profile_image_url
+        boolean is_hidden
         int display_popclass
         int potential_popclass
         int legacy_popclass
-        varchar character_name
-        varchar comment
-        boolean is_hidden
         int normal_credit
         int extra_credit
         int time_play_10_credit
         int time_play_16_credit
-        varchar role
         datetime created_at
         datetime updated_at
     }
@@ -103,6 +112,18 @@ erDiagram
         boolean has_strict_gauge
         boolean is_upper
         boolean is_deleted
+        datetime created_at
+        datetime updated_at
+    }
+
+    SONG_SEARCH_TAGS {
+        bigint tag_id PK
+        bigint song_id
+        varchar tag_value
+        varchar normalized_tag_value
+        varchar tag_type
+        varchar source
+        boolean is_active
         datetime created_at
         datetime updated_at
     }
@@ -177,6 +198,8 @@ erDiagram
     }
 
     SONGS ||--o{ CHARTS : "has charts"
+    SONGS ||--o{ SONG_SEARCH_TAGS : "has search tags"
+    USERS ||--|| USER_PROFILES : "has public profile"
     USERS ||--o{ PLAYDATA : "has scoped best playdata"
     CHARTS ||--o{ PLAYDATA : "is played as"
     USERS ||--o{ PLAYDATA_HISTORY : "has history"
@@ -190,7 +213,9 @@ erDiagram
 
 | 관계 | 의미 | DB FK |
 | --- | --- | --- |
+| `users 1:1 user_profiles` | 계정 정보와 공개 프로필/랭킹 표시 캐시를 분리합니다. | 없음 |
 | `songs 1:N charts` | 한 곡은 여러 난이도 채보를 가집니다. | 없음 |
+| `songs 1:N song_search_tags` | 한 곡은 여러 검색 태그/별칭을 가질 수 있습니다. | 없음 |
 | `users 1:N playdata` | 한 유저는 여러 스코프별 베스트 플레이데이터를 가집니다. | 없음 |
 | `charts 1:N playdata` | 한 채보는 여러 유저의 플레이데이터를 가집니다. | 없음 |
 | `users + charts + best_type + target_version -> playdata unique` | 유저별 채보의 버전 베스트와 역대 베스트는 스코프별로 하나만 존재합니다. | unique key |
@@ -201,26 +226,17 @@ erDiagram
 
 ## users
 
-기존 `"user"`는 예약어 회피가 번거로우므로 `users`로 바꿉니다.
+기존 `"user"`는 예약어 회피가 번거로우므로 `users`로 바꿉니다. 신규 구조에서는 `users`를 계정/인증/권한 테이블로 제한하고, 공개 화면에 필요한 프로필과 게임 표시 캐시는 `user_profiles`로 분리합니다.
+
+이 분리는 3테이블 구조(`users`, `user_profiles`, `user_game_stats`)보다 단순하면서도, 단일 `users` 테이블보다 보안 경계를 선명하게 만들기 위한 절충안입니다.
 
 | 컬럼 | 타입 | 제약 | 설명 |
 | --- | --- | --- | --- |
 | `user_id` | BIGINT | PK, auto increment | 내부 id |
 | `poptomo_id` | VARCHAR(32) | NOT NULL, UNIQUE | 외부 유저 식별자 |
-| `user_name` | VARCHAR(64) | NOT NULL | 유저명 |
 | `password_hash` | VARCHAR(255) | NOT NULL | 해싱된 비밀번호 |
 | `email` | VARCHAR(255) | NULL, UNIQUE | 비밀번호 복구용 이메일 |
 | `email_verified_at` | DATETIME | NULL | 이메일 인증 완료 시각 |
-| `display_popclass` | INT | NOT NULL DEFAULT 0 | 현재 서비스 표기용 팝클. 기본은 현재 버전 `VERSION_BEST` 기준 |
-| `potential_popclass` | INT | NOT NULL DEFAULT 0 | 최고 기록 기준으로 산출한 포텐셜 팝클래스. `ALL_TIME_BEST` 기준 |
-| `legacy_popclass` | INT | NOT NULL DEFAULT 0 | 28버전 이전 기준 팝클. 기존 DB 마이그레이션 값 보존 |
-| `character_name` | VARCHAR(128) | NOT NULL DEFAULT '' | 캐릭터 |
-| `comment` | VARCHAR(255) | NOT NULL DEFAULT '' | 코멘트 |
-| `is_hidden` | BOOLEAN | NOT NULL DEFAULT FALSE | 비공개 여부 |
-| `normal_credit` | INT | NOT NULL DEFAULT 0 | `NORMAL` credit |
-| `extra_credit` | INT | NOT NULL DEFAULT 0 | `EXTRA` credit |
-| `time_play_10_credit` | INT | NOT NULL DEFAULT 0 | `TIME PLAY(10분)` credit |
-| `time_play_16_credit` | INT | NOT NULL DEFAULT 0 | `TIME PLAY(16분)` credit |
 | `role` | VARCHAR(20) | NOT NULL DEFAULT 'USER' | `USER`, `ADMIN`, `BOT` |
 | `created_at` | DATETIME | NOT NULL | 생성일 |
 | `updated_at` | DATETIME | NOT NULL | 수정일 |
@@ -229,16 +245,53 @@ erDiagram
 
 | 인덱스 | 목적 |
 | --- | --- |
-| unique `poptomo_id` | 로그인/프로필/갱신 조회 |
+| unique `poptomo_id` | 로그인/프로필/갱신 대상 조회 |
 | unique `email` | 비밀번호 복구 대상 조회 |
+| `role` | 관리자/BOT 계정 필터 |
+
+### 계정 정책
+
+- `users`는 password, email, role처럼 보안과 인증에 직접 관련된 값만 소유합니다.
+- 공개 프로필 조회와 랭킹 조회는 가능한 한 `user_profiles` 중심 projection으로 처리하고, `users`에서는 `poptomo_id`, `role`처럼 필요한 최소 필드만 붙입니다.
+- 유저 생성 시 `users`와 `user_profiles` row를 같은 transaction에서 함께 생성합니다.
+- DB foreign key constraint는 두지 않지만, `user_profiles.user_id`는 반드시 존재하는 `users.user_id`와 1:1로 유지합니다.
+
+## user_profiles
+
+공개 프로필, 랭킹 표시 캐시, 게임 갱신으로 바뀌는 credit을 저장합니다.
+
+`character_name`은 갱신 때 함께 바뀔 수 있지만, 성격상 게임 통계 수치라기보다 프로필/랭킹에 표시되는 공개 정보이므로 `user_profiles`에 둡니다. `display_popclass`, `potential_popclass`, credit도 화면에서 프로필 정보와 함께 쓰이므로 MVP에서는 별도 `user_game_stats`로 쪼개지 않습니다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+| --- | --- | --- | --- |
+| `user_id` | BIGINT | PK | `users.user_id`와 1:1로 대응하는 내부 id |
+| `user_name` | VARCHAR(64) | NOT NULL | 유저명 |
+| `character_name` | VARCHAR(128) | NOT NULL DEFAULT '' | 캐릭터 |
+| `comment` | VARCHAR(255) | NOT NULL DEFAULT '' | 코멘트 |
+| `profile_image_url` | VARCHAR(512) | NULL | 프로필 이미지 URL 또는 key |
+| `is_hidden` | BOOLEAN | NOT NULL DEFAULT FALSE | 비공개 여부 |
+| `display_popclass` | INT | NOT NULL DEFAULT 0 | 현재 서비스 표기용 팝클. 기본은 현재 버전 `VERSION_BEST` 기준 |
+| `potential_popclass` | INT | NOT NULL DEFAULT 0 | 최고 기록 기준으로 산출한 포텐셜 팝클래스. `ALL_TIME_BEST` 기준 |
+| `legacy_popclass` | INT | NOT NULL DEFAULT 0 | 28버전 이전 기준 팝클. 기존 DB 마이그레이션 값 보존 |
+| `normal_credit` | INT | NOT NULL DEFAULT 0 | `NORMAL` credit |
+| `extra_credit` | INT | NOT NULL DEFAULT 0 | `EXTRA` credit |
+| `time_play_10_credit` | INT | NOT NULL DEFAULT 0 | `TIME PLAY(10분)` credit |
+| `time_play_16_credit` | INT | NOT NULL DEFAULT 0 | `TIME PLAY(16분)` credit |
+| `created_at` | DATETIME | NOT NULL | 생성일 |
+| `updated_at` | DATETIME | NOT NULL | 수정일 |
+
+### 인덱스
+
+| 인덱스 | 목적 |
+| --- | --- |
 | `display_popclass desc` | 현재 표기 기준 유저 랭킹 |
 | `potential_popclass desc` | 최고 기록 기준 포텐셜 랭킹 |
 | `legacy_popclass desc` | 28버전 이전 기준 보존/비교 |
-| `role`, `display_popclass desc` | BOT 제외 현재 랭킹 |
+| `is_hidden`, `display_popclass desc` | 비공개 유저 제외 랭킹 |
 
 ### 팝클래스 정책
 
-`users`는 화면과 랭킹에서 자주 쓰는 유저 단위 팝클 값을 캐시합니다. High☆Cheers부터 점수와 팝클 기준이 버전별로 갈라지므로 단일 `popclass` 컬럼으로는 부족합니다.
+`user_profiles`는 화면과 랭킹에서 자주 쓰는 유저 단위 팝클 값을 캐시합니다. High☆Cheers부터 점수와 팝클 기준이 버전별로 갈라지므로 단일 `popclass` 컬럼으로는 부족합니다.
 
 | 컬럼 | 계산 기준 | 용도 |
 | --- | --- | --- |
@@ -250,9 +303,9 @@ erDiagram
 
 - 현재 버전 score 갱신 후 `display_popclass`를 재계산합니다.
 - `ALL_TIME_BEST`가 갱신되면 `potential_popclass`도 반드시 재계산합니다.
-- 기존 DB 마이그레이션 시 기존 `users.popclass`는 `legacy_popclass`에 보존합니다.
+- 기존 DB 마이그레이션 시 기존 `"user".popclass`는 `user_profiles.legacy_popclass`에 보존합니다.
 - 마이그레이션 시 기존 playdata를 `ALL_TIME_BEST(score_version = 28)`로 넣은 뒤, 초기 `potential_popclass`를 반드시 한 번 계산해 채웁니다.
-- 마이그레이션 중 계산식 검증이 끝나지 않았다면 기존 `users.popclass`를 임시 복사할 수 있지만, 전환 완료 전 재계산 결과로 덮어써야 합니다.
+- 마이그레이션 중 계산식 검증이 끝나지 않았다면 기존 `"user".popclass`를 임시 복사할 수 있지만, 전환 완료 전 재계산 결과로 덮어써야 합니다.
 
 ### 이메일 정책
 
@@ -311,6 +364,16 @@ High☆Cheers 기준 credit 종류는 기존 `normal/battle/local`이 아니라 
 - 후보 검증이 끝나면 migration에서 `song_hash`를 backfill하고 `NOT NULL`, `UNIQUE` 제약을 적용합니다.
 - `song_hash`가 바뀔 수 있으므로 `playdata`, `playdata_history`, jacket/image, 검색 index, cache는 `song_hash`가 아니라 `song_id` 또는 `chart_id`를 기준으로 연결합니다.
 - 곡 메타데이터 변경 API는 `song_id`로 대상을 지정하고, 변경 결과로 songhash가 바뀌면 old/new mapping 또는 alias를 남깁니다.
+- 레거시 S3 자켓 key가 기존 `songHash`를 사용했으므로, 마이그레이션 시 기존 key를 rename하지 않고 신규 `song_hash` 기반 key로 copy/upload한 뒤 `jacket_url` 참조를 전환합니다.
+- 추후 `song_hash`가 변경되는 곡도 자켓을 신규 key에 새로 저장하고, 기존 key는 검증/롤백 기간 이후 정리합니다.
+
+자켓 key 후보:
+
+```text
+jackets/{songHash}.png
+```
+
+주의: 내부 참조는 여전히 `song_id`가 기준입니다. `songHash` 기반 자켓 key는 외부 정적 asset key 또는 호환 목적의 파생값으로만 다룹니다.
 
 ### 인덱스
 
@@ -320,6 +383,39 @@ High☆Cheers 기준 credit 종류는 기존 `normal/battle/local`이 아니라 
 | `version`, `song_name` | 원곡 수록 버전 기준 곡 목록 정렬 |
 | `genre_name`, `song_name` | 기본 검색 |
 | `song_name` | 곡명 검색 |
+
+## song_search_tags
+
+곡 검색용 태그/별칭입니다. 공식 곡명, 장르명, 아티스트명만으로 찾기 어려운 검색어를 별도 테이블로 관리합니다.
+
+예를 들어 `moonchild`라는 곡을 사용자가 `문차일드`로 검색할 수 있게 하려면 다음과 같은 tag를 저장합니다.
+
+| 컬럼 | 타입 | 제약 | 설명 |
+| --- | --- | --- | --- |
+| `tag_id` | BIGINT | PK, auto increment | 내부 id |
+| `song_id` | BIGINT | NOT NULL | 대상 곡 id |
+| `tag_value` | VARCHAR(255) | NOT NULL | 검색어 원문. 예: `문차일드` |
+| `normalized_tag_value` | VARCHAR(255) | NOT NULL | 검색용 정규화 값 |
+| `tag_type` | VARCHAR(32) | NOT NULL | `KOREAN_ALIAS`, `ROMANIZED`, `ABBREVIATION`, `COMMUNITY`, `ADMIN` 등 |
+| `source` | VARCHAR(32) | NOT NULL | `ADMIN`, `MIGRATION`, `USER_SUGGESTION` 등 |
+| `is_active` | BOOLEAN | NOT NULL | 검색 반영 여부 |
+| `created_at` | DATETIME | NOT NULL | 생성일 |
+| `updated_at` | DATETIME | NOT NULL | 수정일 |
+
+정책:
+
+- `song_search_tags`는 검색용 alias이며 공식 표시명은 아닙니다.
+- 같은 곡에 같은 normalized tag가 중복 등록되지 않게 합니다.
+- MVP에서는 관리자 또는 seed/migration으로만 등록합니다.
+- 유저가 태그를 제안하고 관리자가 승인하는 플로우는 MVP 이후 기능으로 둡니다.
+- Redis 검색 read model은 `songs`, `charts`, `song_search_tags`를 조합해 생성합니다.
+
+### 인덱스
+
+| 인덱스 | 목적 |
+| --- | --- |
+| `normalized_tag_value`, `is_active` | 태그 검색 |
+| unique `song_id`, `normalized_tag_value`, `tag_type` | 같은 곡의 중복 태그 방지 |
 
 ## charts
 
@@ -572,7 +668,7 @@ KEY idx_playdata_chart_score (
 )
 ```
 
-랭킹 목록에서 유저명이나 캐릭터가 필요하면, 먼저 `playdata`에서 상위 100명을 줄인 뒤 그 `user_id` 목록에 대해서만 `user_profiles` 또는 `users`를 join합니다.
+랭킹 목록에서 유저명이나 캐릭터가 필요하면, 먼저 `playdata`에서 상위 100명을 줄인 뒤 그 `user_id` 목록에 대해서만 `user_profiles`를 join합니다. `poptomo_id`나 BOT 제외가 필요하면 `users`를 추가로 붙입니다.
 
 #### 레벨/난이도별 rank, medal 집계
 
@@ -850,29 +946,37 @@ V5__seed_constants.sql
 CREATE TABLE users (
     user_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     poptomo_id VARCHAR(32) NOT NULL,
-    user_name VARCHAR(64) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(255) NULL,
     email_verified_at DATETIME NULL,
-    display_popclass INT NOT NULL DEFAULT 0,
-    potential_popclass INT NOT NULL DEFAULT 0,
-    legacy_popclass INT NOT NULL DEFAULT 0,
-    character_name VARCHAR(128) NOT NULL DEFAULT '',
-    comment VARCHAR(255) NOT NULL DEFAULT '',
-    is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
-    normal_credit INT NOT NULL DEFAULT 0,
-    extra_credit INT NOT NULL DEFAULT 0,
-    time_play_10_credit INT NOT NULL DEFAULT 0,
-    time_play_16_credit INT NOT NULL DEFAULT 0,
     role VARCHAR(20) NOT NULL DEFAULT 'USER',
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL,
     UNIQUE KEY uk_users_poptomo_id (poptomo_id),
     UNIQUE KEY uk_users_email (email),
-    KEY idx_users_display_popclass (display_popclass DESC),
-    KEY idx_users_potential_popclass (potential_popclass DESC),
-    KEY idx_users_legacy_popclass (legacy_popclass DESC),
-    KEY idx_users_role_display_popclass (role, display_popclass DESC)
+    KEY idx_users_role (role)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE user_profiles (
+    user_id BIGINT PRIMARY KEY,
+    user_name VARCHAR(64) NOT NULL,
+    character_name VARCHAR(128) NOT NULL DEFAULT '',
+    comment VARCHAR(255) NOT NULL DEFAULT '',
+    profile_image_url VARCHAR(512) NULL,
+    is_hidden BOOLEAN NOT NULL DEFAULT FALSE,
+    display_popclass INT NOT NULL DEFAULT 0,
+    potential_popclass INT NOT NULL DEFAULT 0,
+    legacy_popclass INT NOT NULL DEFAULT 0,
+    normal_credit INT NOT NULL DEFAULT 0,
+    extra_credit INT NOT NULL DEFAULT 0,
+    time_play_10_credit INT NOT NULL DEFAULT 0,
+    time_play_16_credit INT NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    KEY idx_user_profiles_display_popclass (display_popclass DESC),
+    KEY idx_user_profiles_potential_popclass (potential_popclass DESC),
+    KEY idx_user_profiles_legacy_popclass (legacy_popclass DESC),
+    KEY idx_user_profiles_hidden_display_popclass (is_hidden, display_popclass DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE songs (
@@ -889,6 +993,21 @@ CREATE TABLE songs (
     KEY idx_songs_version_name (version, song_name),
     KEY idx_songs_genre_name (genre_name, song_name),
     KEY idx_songs_name (song_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE song_search_tags (
+    tag_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    song_id BIGINT NOT NULL,
+    tag_value VARCHAR(255) NOT NULL,
+    normalized_tag_value VARCHAR(255) NOT NULL,
+    tag_type VARCHAR(32) NOT NULL,
+    source VARCHAR(32) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    UNIQUE KEY uk_song_search_tags_song_value_type (song_id, normalized_tag_value, tag_type),
+    KEY idx_song_search_tags_value_active (normalized_tag_value, is_active),
+    KEY idx_song_search_tags_song (song_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE charts (
@@ -1012,7 +1131,8 @@ ALTER TABLE songs
 
 | 기존 | 신규 | 변환 |
 | --- | --- | --- |
-| `"user"` | `users` | `password` -> `password_hash`, `"character"` -> `character_name`, 기존 `popclass` -> `legacy_popclass`, `potential_popclass`는 `ALL_TIME_BEST` 적재 후 재계산, 기존 credit/코인수는 이어받지 않고 신규 4종 credit을 0으로 초기화, `email`은 신규 nullable |
+| `"user"` | `users` | `poptomo_id`, `password` -> `password_hash`, `role`, 신규 `email`/`email_verified_at`은 nullable로 적재 |
+| `"user"` | `user_profiles` | `user_name`, `"character"` -> `character_name`, `comment`, 공개/비공개 상태, 기존 `popclass` -> `legacy_popclass`, `potential_popclass`는 `ALL_TIME_BEST` 적재 후 재계산, 기존 credit/코인수는 이어받지 않고 신규 4종 credit을 0으로 초기화 |
 | `chart` | `songs` | `song_hash` 후보와 곡 메타데이터(`genre_name`, `song_name`, `version`, `jacket`)를 기준으로 곡 단위 분리 |
 | `chart` | `charts` | `difficulty`, `level`, `is_upper`, `chart_version`, `is_deleted`를 난이도별로 이전. Upper가 원곡보다 늦게 나온 경우 `chart_version`에 Upper 등장 버전을 저장 |
 | `playdata` | `playdata` | old `chart_id`를 new `chart_id`로 매핑. 기존 점수는 `ALL_TIME_BEST`, `target_version = 0`, `score_version = 28`로 저장 |
@@ -1027,13 +1147,14 @@ ALTER TABLE songs
 | `rank_policy` 테이블 | MVP에서는 코드 상수로 충분 | 운영 중 변경이 잦아지면 테이블화 |
 | `medal_policy` 테이블 | 신규 어시이지 코드 확정 필요 | 코드표 확정 후 테이블화 |
 | `difficulty_policy` 테이블 | High☆Cheers 기준 4개 라벨이면 충분 | 버전별 표시가 복잡해지면 테이블화 |
-| 검색 태그 | MVP 핵심 경로 아님 | `song_search_tags` 추가 |
+| 검색 태그 기여/승인 UI | MVP 핵심 경로 아님 | 테이블은 두되 유저 기여 플로우는 추후 |
 
 ## 남은 결정 사항
 
 - 신규 `song_hash` seed에 `artist_name`을 넣을 수 있는가?
 - Upper는 별도 song으로 볼 것인가, 같은 song의 chart 속성으로만 볼 것인가?
 - 기존 medal 코드표와 신규 `어시이지` 코드값은 어디에 배치할 것인가?
+- `song_search_tags.tag_type`과 `source` enum 값을 MVP에서 어디까지 열 것인가?
 - `last_played_at`을 크롤링 원천에서 얻을 수 있는가?
 - 기존 password가 실제 원문인지, 외부 secret인지, 이미 hash인지 확인해야 합니다.
 - 이메일 인증을 MVP 1차에 포함할 것인가, 이메일 등록 후 복구만 먼저 열 것인가?

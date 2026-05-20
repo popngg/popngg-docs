@@ -93,7 +93,7 @@ executor 공통 규칙:
 | 조회/작업 | 필요한 설계 |
 | --- | --- |
 | 유저 로그인/프로필 | `users.poptomo_id` unique index |
-| 유저 랭킹 | `users.role`, `display_popclass desc` 복합 index |
+| 유저 랭킹 | `user_profiles.display_popclass desc`, 필요 시 `users.role` join |
 | 유저 팝클 테이블 | `playdata(user_id, best_type, target_version, popclass desc, score desc)` |
 | 곡별 랭킹 | `playdata(chart_id, best_type, target_version, score desc)` |
 | 곡별 메달 랭킹 | `playdata(chart_id, best_type, target_version, medal_code, score desc)` |

@@ -41,6 +41,13 @@ Git push
 
 Jenkins job은 같은 환경에 대한 동시 배포를 막아야 합니다.
 
+JDK/Spring baseline:
+
+- 신규 기술 baseline은 `JDK 25 + Spring Boot 4.x / Spring Framework 7.x`를 우선 검증합니다.
+- JDK 25에서 Gradle, Querydsl, springdoc, Docker image build, Jenkins build 중 호환성 문제가 확인되면 `JDK 21`로 fallback합니다.
+- Jenkins agent와 Docker base image는 같은 JDK major version을 사용합니다.
+- JDK 25 검증이 끝나기 전에는 운영 배포 기준을 확정하지 않고, spike branch에서 `./gradlew clean test`, bootJar, image build, app boot smoke test를 먼저 통과시킵니다.
+
 권장 stage:
 
 | Stage | 내용 |

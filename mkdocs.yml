@@ -58,6 +58,7 @@ nav:
       - 개요: meetings/index.md
       - 데이터 모델링: meetings/data-modeling.md
       - songhash 생성 규칙: meetings/songhash.md
+      - Runtime Baseline: meetings/runtime-baseline.md
       - Upper 모델링: meetings/upper-modeling.md
       - LONG POP ON/OFF: meetings/long-pop.md
       - 곡 검색 API와 라이브서치: meetings/song-search.md
@@ -71,6 +72,7 @@ nav:
       - 개요: design/index.md
       - 아키텍처: architecture.md
       - 레거시 문제 대응 전략: legacy-risk-response.md
+      - 트러블슈팅 기록: troubleshooting.md
       - 기존 DB 구조: legacy-db-inference.md
       - MVP DB 설계 초안: mvp-db-design.md
       - 데이터 모델링: data-modeling.md

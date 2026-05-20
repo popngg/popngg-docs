@@ -91,7 +91,7 @@
 
 ## 유저 테이블 책임 분리
 
-현재 DB 설계 초안은 `users`에 계정, 프로필, 팝클래스, 크레딧 정보를 함께 둡니다. MVP에서는 단순하지만, 장기적으로는 책임이 많아질 수 있습니다.
+초기 DB 설계 초안은 `users`에 계정, 프로필, 팝클래스, 크레딧 정보를 함께 두는 안이었습니다. MVP에서는 단순하지만, 장기적으로는 책임이 많아질 수 있습니다.
 
 회의에서는 `users` 단일 테이블로 갈지, 계정/프로필/게임 상태를 분리할지 결정해야 합니다.
 
@@ -222,16 +222,63 @@ users
 - MVP 출시가 급하지만, 문서와 코드에서 계정/프로필/게임 상태 경계를 미리 지키고 싶습니다.
 - DB는 단일 테이블이어도 application layer에서는 DTO와 use case를 분리할 수 있습니다.
 
-### 현재 권장안
+### Option D. users + user_profiles 2테이블 분리
 
-장기적으로는 **Option B. 계정, 프로필, 게임 상태 분리**가 더 안전합니다.
+```text
+users
+- user_id
+- poptomo_id
+- password_hash
+- email
+- email_verified_at
+- role
+- created_at
+- updated_at
 
-다만 MVP 일정이 빠듯하면 **Option C**로 시작하되, 코드에서는 처음부터 다음 경계를 지키는 것이 좋습니다.
+user_profiles
+- user_id
+- user_name
+- character_name
+- comment
+- profile_image_url
+- is_hidden
+- display_popclass
+- potential_popclass
+- legacy_popclass
+- normal_credit
+- extra_credit
+- time_play_10_credit
+- time_play_16_credit
+- created_at
+- updated_at
+```
+
+장점:
+
+- `password_hash`, `email`, `role` 같은 계정/보안 정보가 공개 프로필/랭킹 조회 테이블과 분리됩니다.
+- 프로필 화면과 랭킹 화면에서 함께 쓰이는 `character_name`, `display_popclass`, credit을 한 테이블에서 조회할 수 있습니다.
+- 3테이블 구조보다 조인과 1:1 row 정합성 부담이 작습니다.
+- 단일 `users`보다 헥사고널 아키텍처의 account/profile 책임 경계를 코드와 DB 모두에서 표현하기 쉽습니다.
+
+단점:
+
+- `user_profiles`가 공개 프로필뿐 아니라 랭킹 표시 캐시와 credit까지 포함하므로 이름보다 책임이 조금 넓습니다.
+- 유저 생성 시 `users`와 `user_profiles`를 같은 transaction에서 함께 생성해야 합니다.
+- 버전별 통계나 credit 이력이 필요해지면 추후 `user_stats_by_version`, `user_credit_history` 같은 테이블을 추가해야 합니다.
+
+`character_name`은 갱신 때 함께 write될 수 있지만, 랭킹/프로필에 표시되는 공개 정보이므로 `user_profiles`에 둡니다. `display_popclass`, `potential_popclass`, credit도 프로필 주변 화면에서 함께 쓰이므로 MVP에서는 `user_game_stats`로 따로 쪼개지 않습니다.
+
+### 현재 결정
+
+MVP는 **Option D. users + user_profiles 2테이블 분리**로 진행합니다.
+
+코드에서는 다음 경계를 지킵니다.
 
 - 인증/계정 use case는 `password_hash`, `email`, `role`만 다룹니다.
-- 공개 프로필 use case는 `user_name`, `character_name`, `comment`, `is_hidden`만 다룹니다.
-- 게임 상태 use case는 `display_popclass`, `potential_popclass`, `legacy_popclass`, credit만 다룹니다.
-- API 응답 DTO도 account/profile/game stats를 구분해 둡니다.
+- 공개 프로필 use case는 `user_name`, `character_name`, `comment`, `profile_image_url`, `is_hidden`을 다룹니다.
+- playdata 갱신 use case는 필요하면 `user_profiles`의 `character_name`, credit, popclass cache를 함께 갱신합니다.
+- 랭킹 조회 use case는 `user_profiles`를 기준으로 정렬하고, 필요한 경우 `users.poptomo_id`, `users.role`만 붙입니다.
+- API 응답 DTO는 account와 profile 영역을 구분하되, DB에서 `user_profiles`를 다시 profile/stats로 과하게 나누지는 않습니다.
 
 ## 회의에서 결정할 질문
 
@@ -240,7 +287,7 @@ users
 3. 기존 DB 점수는 `ALL_TIME_BEST(score_version = 28)`만 만들 것인가?
 4. 현재 버전 기록이 없는 유저의 `display_popclass`는 0으로 둘 것인가, 기존 값을 임시 표시할 것인가?
 5. 비밀번호 전환은 legacy 검증 후 점진 업그레이드, 일괄 재해싱, 강제 재설정 중 무엇을 기준으로 할 것인가?
-6. `users`를 단일 테이블로 유지할 것인가, `user_profiles`, `user_game_stats`로 분리할 것인가?
-7. 단일 테이블로 시작한다면 application layer와 API DTO에서는 책임 경계를 미리 나눌 것인가?
+6. `users`와 `user_profiles`를 생성하는 transaction과 누락 row 복구 정책은 어떻게 둘 것인가?
+7. `user_profiles`에서 추후 `user_stats_by_version`을 분리할 조건은 무엇인가?
 8. 곡별 성장 추세는 MVP에서 best 변경 이력만으로 시작할 것인가, 크롤링 snapshot을 모두 저장할 것인가?
 9. 추후 성장 그래프를 위해 `playdata_daily_snapshots` 같은 집계 테이블을 예약해 둘 것인가?
