@@ -94,9 +94,10 @@ executor 공통 규칙:
 | --- | --- |
 | 유저 로그인/프로필 | `users.poptomo_id` unique index |
 | 유저 랭킹 | `user_profiles.display_popclass desc`, 필요 시 `users.role` join |
-| 유저 팝클 테이블 | `playdata(user_id, best_type, target_version, popclass desc, score desc)` |
-| 곡별 랭킹 | `playdata(chart_id, best_type, target_version, score desc)` |
-| 곡별 메달 랭킹 | `playdata(chart_id, best_type, target_version, medal_code, score desc)` |
+| 유저 팝클 테이블 | `playdata(user_id, current_version, popclass desc, version_score desc)` |
+| 곡별 현재 버전 랭킹 | `playdata(chart_id, current_version, version_score desc)` |
+| 곡별 역대 랭킹 | `playdata(chart_id, all_time_score desc)` |
+| 곡별 메달 랭킹 | `playdata(chart_id, medal_code, version_score desc)` |
 | 레벨별 rank/medal 집계 | `playdata`와 `charts.level` 기준 집계 또는 summary table |
 | 최근 갱신/이력 | `playdata_history(user_id, chart_id, created_at desc)` |
 

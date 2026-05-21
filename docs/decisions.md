@@ -65,16 +65,17 @@
 - 영향: 갱신 코드와 수동 업로드 API는 rank를 필수 데이터로 다뤄야 한다.
 - 영향: `rank_policy`의 점수 구간은 표시/정렬/검증용 참고값이며, 핵심 판정 로직이 아니다.
 
-## ADR-009: playdata는 버전 베스트와 역대 베스트를 분리한다
+## ADR-009: playdata는 현재 상태 1 row와 변경 이력으로 분리한다
 
 - 상태: Accepted
-- 결정: `playdata`는 `best_type`, `target_version`, `score_version`을 저장해 현재 버전 베스트와 역대 베스트를 분리한다.
-- 이유: High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었고, 이후 다른 버전에서도 같은 정책이 반복될 수 있으므로 버전 베스트와 역대 베스트를 일반 구조로 저장해야 하기 때문이다.
+- 결정: `playdata`는 `user_id + chart_id`당 현재 상태 1 row를 유지하고, `playdata_history`는 기록 갱신/메달 변경/버전 초기화/승계 이벤트만 append한다.
+- 이유: 점수는 버전 전환 정책에 따라 초기화되거나 승계될 수 있고 메달은 유지되므로, 현재 버전 점수(`version_score`), 역대 최고 점수(`all_time_score`), 유지 메달(`medal_code`)을 한 current state로 관리하는 편이 단순하다.
 - 영향: 기존 DB의 플레이데이터는 28버전 기록으로 마이그레이션한다.
 - 영향: 앞으로 크롤링한 점수는 현재 버전에서 나온 기록으로 저장한다.
-- 영향: 유저 팝클은 현재 버전 `VERSION_BEST` 기준으로 계산한다.
-- 영향: 조회 API는 현재 버전 전용 화면과 비교/상세 화면을 구분해 `VERSION_BEST`와 `ALL_TIME_BEST`를 명시적으로 내려줘야 한다.
-- 열린 질문: 기존 playdata를 28버전 `VERSION_BEST` row로도 복제할지, MVP에서는 `ALL_TIME_BEST`만 보존할지 결정해야 한다.
+- 영향: 유저 팝클은 현재 버전 `version_score` 기준으로 계산한다.
+- 영향: 조회 API는 `versionBest`, `allTimeBest`, `medal`을 분리해 내려준다.
+- 영향: 과거 버전별 성장 추이는 `playdata_history.game_version` 기준으로 복원한다.
+- 영향: 버전 전환은 `game_version_transitions.score_policy`의 `RESET`/`CARRY_OVER` 정책을 따른다.
 
 ## ADR-010: 팝클 산정 대상 bucket은 서버가 계산해 playdata에 마킹한다
 

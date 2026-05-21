@@ -106,12 +106,15 @@ High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었고, 앞
 
 - 기존 DB의 플레이데이터는 28버전 기록으로 마이그레이션합니다.
 - 앞으로 크롤링한 점수는 무조건 현재 버전에서 나온 기록으로 저장합니다.
-- `playdata`에는 해당 점수가 몇 버전에서 나온 기록인지 `score_version`을 저장합니다.
-- 현재 버전 베스트는 `VERSION_BEST`, 역대 베스트는 `ALL_TIME_BEST`로 분리합니다.
-- 조회 API도 같은 구분을 유지합니다. 현재 버전 기준 화면은 `VERSION_BEST`를 사용하고, 비교/상세 화면은 `VERSION_BEST`와 `ALL_TIME_BEST`를 함께 내려줄 수 있어야 합니다.
-- 팝클은 이번 버전 기준으로 계산합니다. 즉 현재 버전 `VERSION_BEST` row만 유저 팝클 계산에 사용합니다.
-- 현재 버전 점수가 역대 베스트를 넘으면 현재 버전 베스트와 역대 베스트를 함께 갱신합니다.
-- 현재 버전 점수가 역대 베스트보다 낮으면 현재 버전 베스트만 갱신하고 역대 베스트는 유지합니다.
+- `playdata`는 `user_id + chart_id`당 현재 상태 1 row만 유지합니다.
+- 버전 전환 시 점수 처리 방식은 `RESET` 또는 `CARRY_OVER` 정책으로 명시합니다.
+- 현재 버전 베스트는 `current_version`, `version_score`, `version_rank_code`로 저장합니다.
+- 역대 베스트는 `all_time_score`, `all_time_score_version`, `all_time_rank_code`로 저장합니다.
+- 메달은 버전이 바뀌어도 유지되므로 `medal_code`로 별도 상태처럼 저장합니다.
+- 조회 API는 한 row에서 `versionBest`, `allTimeBest`, `medal`을 분리해 내려줍니다.
+- 팝클은 이번 버전 기준으로 계산합니다. 즉 현재 버전 `version_score`만 유저 팝클 계산에 사용합니다.
+- 현재 버전 점수가 역대 베스트를 넘으면 `version_score`와 `all_time_score`를 함께 갱신합니다.
+- 현재 버전 점수가 역대 베스트보다 낮으면 `version_score`만 갱신하고 `all_time_score`는 유지합니다.
 
 ## 갱신 코드
 
@@ -119,11 +122,12 @@ High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었고, 앞
 
 | 수집 항목 | 저장 위치 | 비고 |
 | --- | --- | --- |
-| 점수 | `playdata.score` | 정수 점수 |
-| 점수 버전 | `playdata.score_version` | 크롤링 점수는 현재 게임 버전 |
-| 베스트 스코프 | `playdata.best_type`, `playdata.target_version` | 현재 버전 베스트와 역대 베스트 분리 |
-| 랭크 | `playdata.rank_code` | 원천 데이터에서 수집한 값 |
-| 메달 | `playdata.medal_code` | 원천 데이터에서 수집한 값 |
+| 현재 버전 점수 | `playdata.version_score` | 정수 점수. 버전 전환 정책에 따라 초기화 또는 승계 |
+| 현재 버전 | `playdata.current_version` | 크롤링 점수는 현재 게임 버전 |
+| 역대 점수 | `playdata.all_time_score` | 전체 버전 중 최고 점수 |
+| 역대 점수 버전 | `playdata.all_time_score_version` | 역대 점수가 나온 버전 |
+| 랭크 | `playdata.version_rank_code`, `playdata.all_time_rank_code` | 원천 데이터에서 수집한 값 |
+| 메달 | `playdata.medal_code` | 버전 변경 후에도 유지되는 값 |
 | 클리어 여부 | `playdata` 또는 medal 파생 | 랭크 검증 참고값 |
 
 | 시나리오 | 서버 구현 |
@@ -131,6 +135,23 @@ High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었고, 앞
 | KONAMI가 JSON 제공 | JSON에서 score/rank/medal을 함께 파싱 |
 | HTML/이미지/비정형 데이터 | score/rank/medal 영역을 함께 크롤링/파싱 |
 | 수동 업로드 | 관리자 API에서 rank를 필수 입력값으로 받음 |
+
+## 버전 전환 정책
+
+버전이 올라갔다고 해서 항상 점수가 초기화된다고 가정하지 않습니다.
+
+| 정책 | 의미 | 예시 |
+| --- | --- | --- |
+| `RESET` | 신규 버전의 `version_score`를 0 또는 첫 관측 점수로 시작 | 28 -> 29에서 점수 초기화 |
+| `CARRY_OVER` | 이전 버전의 `version_score`를 신규 버전 시작 점수로 유지 | 29 -> 30에서 기록 초기화가 없는 경우 |
+
+운영 흐름:
+
+1. 신규 버전이 확인되면 관리자 API로 전환 정책을 등록합니다.
+2. 점수 초기화 여부가 확정되기 전에는 `DRAFT` 상태로 둡니다.
+3. 확정 후 적용 API 또는 Jenkins job으로 `playdata.current_version`을 chunk 단위로 갱신합니다.
+4. `RESET`이면 `VERSION_INITIALIZED`, `CARRY_OVER`이면 `VERSION_CARRIED_OVER` 이력을 남깁니다.
+5. `display_popclass`는 전환 정책 적용 후 현재 `version_score` 기준으로 재계산합니다.
 
 ## 자켓 표시 정책
 

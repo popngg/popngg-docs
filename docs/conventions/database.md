@@ -60,7 +60,7 @@ idx_{table}_{columns}
 
 ```sql
 UNIQUE KEY uk_users_poptomo_id (poptomo_id),
-KEY idx_playdata_user_scope_chart (user_id, best_type, target_version, chart_id)
+KEY idx_playdata_user_version_chart (user_id, current_version, chart_id)
 ```
 
 규칙:

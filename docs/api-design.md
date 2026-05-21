@@ -261,8 +261,7 @@ DB 기준으로는 `users`가 계정/인증/권한을, `user_profiles`가 공개
 
 | 파라미터 | 기본값 | 설명 |
 | --- | --- | --- |
-| `bestType` | 없음 | 특정 스코프만 좁혀 보고 싶을 때 사용. 생략 시 두 스코프를 함께 반환 |
-| `targetVersion` | 현재 버전 | `VERSION_BEST` 대상 버전. `bestType`이 없거나 `VERSION_BEST`가 포함될 때 사용 |
+| `gameVersion` | 현재 버전 | 현재 버전 점수/팝클/랭킹을 조회할 게임 버전 |
 | `difficulty` | 없음 | 난이도 필터 |
 | `isUpper` | 없음 | Upper 필터 |
 
@@ -288,7 +287,7 @@ DB 기준으로는 `users`가 계정/인증/권한을, `user_profiles`가 공개
 | `score` | 원천 score |
 | `rankCode` | 원천 rank. 서버 계산 금지 |
 | `medalCode` | 원천 medal |
-| `scoreVersion` | 점수가 나온 버전. 크롤링 입력에서는 현재 버전 |
+| `gameVersion` | 점수가 관측된 게임 버전. 생략 시 서버 현재 버전 |
 
 `POST /playdata/imports` 처리 결과:
 
@@ -297,7 +296,7 @@ DB 기준으로는 `users`가 계정/인증/권한을, `user_profiles`가 공개
 | `renewLogId` | 갱신 로그 ID |
 | `receivedCount` | 입력 row 수 |
 | `matchedChartCount` | chart 매칭 성공 수 |
-| `updatedPlaydataCount` | best row 변경 수 |
+| `updatedPlaydataCount` | 현재 상태 row 변경 수 |
 | `historyCreatedCount` | history 생성 수 |
 | `skippedCount` | 매칭 실패 또는 저장 제외 수 |
 | `displayPopclass`, `potentialPopclass` | 갱신 후 유저 팝클 |
@@ -306,14 +305,14 @@ DB 기준으로는 `users`가 계정/인증/권한을, `user_profiles`가 공개
 `GET /users/{poptomoId}/playdata/popclass`:
 
 - 서버가 마킹한 `isDisplayPopclassTarget = true` row를 우선 조회합니다.
-- 응답은 `versionBestTop50`, `allTimeBestTop50`를 함께 내려줍니다.
-- `versionBestTop50`는 `CURRENT_VERSION`, `OLD_VERSION` bucket별로도 나눠 내려줍니다.
+- 응답은 `versionBestTop50`와 각 row의 `allTimeBest`를 함께 내려줍니다.
+- `versionBestTop50`는 `CURRENT_VERSION`, `OLD_VERSION` bucket별로 나눠 내려줍니다.
 - 프론트는 상위 20/40 선정 로직을 다시 수행하지 않습니다.
 
 `GET /charts/{chartId}/summary`:
 
 - 차트 상세 페이지에서 필요한 `chart`, `versionBestRankings`, `allTimeBestRankings`, `myVersionBest`, `myAllTimeBest`, 히스토리 요약을 한 번에 내려주는 aggregation API입니다.
-- 랭킹은 `chart_id`, `bestType`, `targetVersion`으로 먼저 줄인 뒤 상위 N명에 대해서만 유저 프로필을 붙입니다.
+- 현재 버전 랭킹은 `chart_id`, `currentVersion`, `versionScore`로 먼저 줄이고, 역대 랭킹은 `chart_id`, `allTimeScore`로 줄인 뒤 상위 N명에 대해서만 유저 프로필을 붙입니다.
 
 `GET /playdata/compare`:
 
@@ -392,6 +391,9 @@ GET /admin/renew-logs/{renewLogId}
 GET /admin/unmatched-playdata
 PATCH /admin/songs/{songId}
 PATCH /admin/charts/{chartId}
+POST /admin/game-version-transitions
+GET /admin/game-version-transitions
+POST /admin/game-version-transitions/{transitionId}/apply
 ```
 
 곡 메타데이터 변경은 `songHash`가 아니라 `songId`로 대상을 지정합니다. 장르명, 제목, 작곡가, 버전, 자켓 정보는 표시/검색 메타데이터이므로 보정될 수 있고, 이 값에 기반한 `songHash`도 바뀔 수 있습니다.
@@ -406,6 +408,61 @@ PATCH /admin/charts/{chartId}
 - `playdata`, `history`, `charts` 같은 영속 데이터는 `songHash`가 아니라 `songId`/`chartId`를 기준으로 연결되어야 합니다.
 
 MVP에서는 로그 테이블과 Jenkins 로그로 충분하면 일부 관리자 조회 API는 제외할 수 있습니다. 다만 곡 메타데이터 보정 API는 songhash 변경 가능성 때문에 별도 구현 후보로 유지합니다.
+
+### 게임 버전 전환 API
+
+버전이 올라갈 때 점수가 항상 초기화되는 것은 아닙니다. 예를 들어 `28 -> 29`에서는 기록이 초기화되어 `version_score`가 0부터 시작했지만, `29 -> 30`에서는 기록이 유지될 수 있습니다. 따라서 서버 현재 버전을 올리기 전에 운영자가 전환 정책을 명시해야 합니다.
+
+```http
+POST /admin/game-version-transitions
+GET /admin/game-version-transitions
+POST /admin/game-version-transitions/{transitionId}/apply
+```
+
+`POST /admin/game-version-transitions` 요청 후보:
+
+```json
+{
+  "fromVersion": 29,
+  "toVersion": 30,
+  "scorePolicy": "CARRY_OVER",
+  "memo": "29 -> 30 전환에서 KONAMI 기록 초기화 없음 확인"
+}
+```
+
+`scorePolicy`:
+
+| 값 | 의미 |
+| --- | --- |
+| `RESET` | 신규 버전의 `version_score`를 0 또는 첫 관측 점수로 시작 |
+| `CARRY_OVER` | 이전 버전의 `version_score`를 신규 버전 시작 점수로 유지 |
+
+적용 API 동작:
+
+- `DRAFT` 정책만 적용할 수 있습니다.
+- `playdata.current_version = fromVersion`인 row를 chunk 단위로 `toVersion`으로 전환합니다.
+- `RESET`이면 `version_score = 0`, `version_rank_code = null`, `popclass = 0`을 기본값으로 두고 메달과 역대 최고 기록은 유지합니다.
+- `CARRY_OVER`이면 기존 `version_score`, `version_rank_code`, `popclass`를 유지한 채 `current_version`만 바꿉니다.
+- 두 정책 모두 `all_time_score`, `all_time_score_version`, `all_time_rank_code`, `medal_code`는 유지합니다.
+- `RESET`은 `playdata_history.event_type = VERSION_INITIALIZED`, `CARRY_OVER`는 `VERSION_CARRIED_OVER`를 남깁니다.
+- 적용 후 유저별 `display_popclass`와 팝클 산정 대상 마킹을 재계산합니다.
+
+응답 후보:
+
+```json
+{
+  "transitionId": 1,
+  "fromVersion": 29,
+  "toVersion": 30,
+  "scorePolicy": "CARRY_OVER",
+  "status": "APPLIED",
+  "affectedPlaydataCount": 120000,
+  "historyCreatedCount": 120000,
+  "appliedAt": "2026-05-21T10:00:00+09:00"
+}
+```
+
+전환 정책이 등록되지 않은 상태에서 서버 현재 버전만 올라간 경우, 갱신 API는 임의로 초기화/승계하지 않습니다. 운영자가 정책을 등록해야 한다는 에러를 남기고, Jenkins 또는 모니터링 알림으로 드러나게 합니다.
 
 ## 응답 설계
 
@@ -515,11 +572,13 @@ GET /songs/{songId}
 - 이전 API의 `battleCredit`, `localCredit`은 신규 API에서 사용하지 않습니다.
 - 서버는 score로 rank를 계산하지 않습니다.
 - 크롤링한 score는 무조건 현재 게임 버전에서 나온 점수로 저장합니다.
-- 서버는 현재 버전 `VERSION_BEST`와 `ALL_TIME_BEST`를 분리해 저장합니다.
-- 서버는 chart level, 현재 버전 score, medal을 기반으로 현재 버전 popclass를 계산해 저장합니다.
-- `ALL_TIME_BEST`가 변경되면 `potentialPopclass`를 반드시 재계산합니다.
-- 현재 버전 `VERSION_BEST`가 변경되면 `displayPopclass`를 반드시 재계산합니다.
-- 현재 버전 `VERSION_BEST`가 변경되면 서버는 `charts.chart_version` 기준으로 이번 버전 채보 20개, 구버전 채보 40개를 다시 선정해 playdata의 `popclassBucket` 마킹을 갱신합니다.
+- `playdata`는 `userId + chartId`당 하나의 현재 상태 row로 유지합니다.
+- 현재 버전 점수는 `versionScore`, 역대 최고 점수는 `allTimeScore`, 유지 메달은 `medalCode`로 응답합니다.
+- 서버는 chart level, 현재 버전 `versionScore`, 유지 `medalCode`를 기반으로 현재 버전 popclass를 계산해 저장합니다.
+- `allTimeScore`가 변경되면 `potentialPopclass`를 반드시 재계산합니다.
+- 현재 버전 `versionScore`가 변경되면 `displayPopclass`를 반드시 재계산합니다.
+- 현재 버전 `versionScore`가 변경되면 서버는 `charts.chart_version` 기준으로 이번 버전 채보 20개, 구버전 채보 40개를 다시 선정해 playdata의 `popclassBucket` 마킹을 갱신합니다.
+- 기록 갱신, 메달 변경, 버전 초기화/승계가 발생하면 `playdataHistory`를 append합니다.
 - 크롤러는 `popclassBucket`을 보내지 않습니다. bucket은 서버 계산값입니다.
 - 매칭되지 않은 chart는 실패 row로 기록하거나 `skippedCount`로 반환합니다.
 - LONG POP ON/OFF 상태는 메달로 파악합니다.
@@ -527,25 +586,26 @@ GET /songs/{songId}
 - 따라서 서버는 LONG POP ON/OFF를 이유로 score나 medal을 임의 보정하지 않고, 원천에서 보이는 score/rank/medal 조합을 저장합니다.
 - popclass에 이 조합을 어떻게 반영할지는 추가 실험으로 확정합니다.
 
-### 버전 베스트와 역대 베스트
+### 현재 상태와 성장 이력
 
-High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었고, 이후 다른 버전에서도 같은 정책이 반복될 수 있습니다. 따라서 API도 특정 한 버전 전환 예외가 아니라 `VERSION_BEST`와 `ALL_TIME_BEST`를 일반 구조로 다뤄야 합니다.
+High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었지만, 이후 버전에서는 초기화가 없을 수도 있습니다. 따라서 API는 점수와 메달의 생명주기가 다르다는 점과, 버전 전환 정책이 `RESET`/`CARRY_OVER`로 달라질 수 있다는 점을 명확히 드러냅니다.
 
-API 응답은 프론트가 구분할 수 있도록 각 플레이데이터에 다음 필드를 포함하는 것을 권장합니다.
+API 응답은 프론트가 구분할 수 있도록 각 플레이데이터에 다음 구조를 포함하는 것을 권장합니다.
 
 | 필드 | 설명 |
 | --- | --- |
-| `bestType` | `VERSION_BEST`, `ALL_TIME_BEST` |
-| `targetVersion` | 버전 베스트 대상 버전. 역대 베스트는 `0` |
-| `scoreVersion` | 점수가 실제로 나온 게임 버전 |
+| `versionBest` | 현재 게임 버전의 점수, 랭크, 팝클. 버전 전환 정책에 따라 초기화 또는 승계 |
+| `allTimeBest` | 역대 최고 점수, 점수가 나온 버전, 랭크 |
+| `medal` | 버전을 넘어 유지되는 현재 클리어 메달 |
+| `history` | 기록 갱신, 메달 변경, 버전 초기화/승계 이벤트 |
 
 조회 API 기준:
 
-- `/users/{poptomoId}/playdata/popclass`는 display popclass 계산은 현재 버전 `VERSION_BEST` 기준으로 하되, 응답에 포함되는 playdata는 `versionBestTop50`와 `allTimeBestTop50`를 함께 내려줍니다.
-- `/users/{poptomoId}/playdata/counts`는 기본적으로 `versionBestCounts`와 `allTimeBestCounts`를 함께 내려주고, 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있게 합니다.
-- `/users/{poptomoId}/playdata`는 기본적으로 `versionBest[]`와 `allTimeBest[]`를 분리해 함께 내려줍니다.
+- `/users/{poptomoId}/playdata/popclass`는 display popclass 계산을 현재 버전 `versionScore` 기준으로 하고, 각 row에 `allTimeBest`도 함께 내려줍니다.
+- `/users/{poptomoId}/playdata/counts`는 현재 버전 `versionRankCode`와 유지 `medalCode` 기준 count를 내려줍니다.
+- `/users/{poptomoId}/playdata`는 각 row에 `versionBest`, `allTimeBest`, `medal`을 함께 내려줍니다.
 - `/charts/{chartId}/summary`는 기본적으로 `myVersionBest`, `myAllTimeBest`, `versionBestRankings`, `allTimeBestRankings`를 함께 내려주는 방향을 우선합니다.
-- `/users/{poptomoId}/playdata/charts/{chartId}/history`는 기본적으로 `versionBestHistories`와 `allTimeBestHistories`를 분리해 내려줍니다.
+- `/users/{poptomoId}/playdata/charts/{chartId}/history`는 `gameVersion`을 포함한 이벤트 목록을 내려줍니다.
 - `/playdata/compare`는 기본적으로 `versionBestUsers[]`와 `allTimeBestUsers[]`를 함께 내려줍니다.
 - 곡별 랭킹을 보여주는 모든 API는 현재 버전 랭킹과 역대 랭킹을 분리해 함께 응답해야 합니다.
 - `/users/{poptomoId}/playdata/popclass`는 서버가 미리 마킹한 `isDisplayPopclassTarget = true` row를 우선 조회합니다.

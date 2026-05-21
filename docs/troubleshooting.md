@@ -81,16 +81,15 @@ List<PlaydataOutputDto> findPlaydataByUser(User user);
 원칙:
 
 - 조회 API는 `QueryService` 또는 query adapter에서 DTO projection으로 반환합니다.
-- 기본 조회는 `bestType`, `targetVersion`, pagination 또는 limit을 반드시 가집니다.
-- `VERSION_BEST`와 `ALL_TIME_BEST`를 함께 내려줘야 하는 API는 각각의 scope를 분리해 조회합니다.
+- 기본 조회는 `gameVersion`, pagination 또는 limit을 반드시 가집니다.
+- 현재 버전 점수와 역대 최고 점수를 함께 내려줘야 하는 API는 같은 `playdata` row에서 `versionBest`, `allTimeBest`, `medal` 응답 객체를 분리합니다.
 - 화면에 필요하지 않은 필드는 반환하지 않습니다.
 - `song_hash`가 아니라 `song_id`, `chart_id` 기준으로 join합니다.
 
 권장 API 기준:
 
 ```text
-GET /users/{poptomoId}/playdata?bestType=VERSION_BEST&page=0&size=100
-GET /users/{poptomoId}/playdata?bestType=ALL_TIME_BEST&page=0&size=100
+GET /users/{poptomoId}/playdata?gameVersion=29&page=0&size=100
 ```
 
 권장 index:
@@ -98,8 +97,7 @@ GET /users/{poptomoId}/playdata?bestType=ALL_TIME_BEST&page=0&size=100
 ```sql
 KEY idx_playdata_user_scope_chart (
     user_id,
-    best_type,
-    target_version,
+    current_version,
     chart_id
 )
 ```
@@ -173,8 +171,8 @@ List<CountChartByLevelAndMedalDto> countChartByLevelAndMedal(User user);
 MVP 기준:
 
 - `GET /users/{poptomoId}/playdata/counts`로 통합합니다.
-- 기본 응답은 `versionBestCounts`와 `allTimeBestCounts`를 함께 제공합니다.
-- 필요하면 `bestType` query parameter로 한 scope만 조회할 수 있게 합니다.
+- 기본 응답은 현재 버전 rank count와 유지 medal count를 제공합니다.
+- 필요하면 `gameVersion` query parameter로 특정 버전을 조회할 수 있게 합니다.
 - entity list를 가져와 Java에서 count하지 않습니다.
 
 권장 API:
@@ -182,7 +180,7 @@ MVP 기준:
 ```text
 GET /users/{poptomoId}/playdata/counts?groupBy=rank
 GET /users/{poptomoId}/playdata/counts?groupBy=medal
-GET /users/{poptomoId}/playdata/counts?bestType=VERSION_BEST&groupBy=rank
+GET /users/{poptomoId}/playdata/counts?gameVersion=29&groupBy=rank
 ```
 
 데이터가 더 커지면 다음 summary table을 고려합니다.
@@ -241,8 +239,7 @@ Spring Data method name에 `Top50`이나 `Pageable`이 없기 때문에 SQL에 `
 SELECT ...
 FROM playdata p
 WHERE p.user_id = :userId
-  AND p.best_type = :bestType
-  AND p.target_version = :targetVersion
+  AND p.current_version = :gameVersion
   AND p.is_display_popclass_target = true
 ORDER BY p.popclass_bucket, p.popclass_bucket_rank;
 ```
@@ -252,8 +249,7 @@ ORDER BY p.popclass_bucket, p.popclass_bucket_rank;
 ```sql
 KEY idx_playdata_user_display_popclass_target (
     user_id,
-    best_type,
-    target_version,
+    current_version,
     is_display_popclass_target,
     popclass_bucket,
     popclass_bucket_rank

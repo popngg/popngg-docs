@@ -78,11 +78,12 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 같은 song이라도 Upper가 나온 버전은 다를 수 있으므로 신곡/구곡 판정과 팝클 bucket 선정은 `charts.chart_version` 기준으로 합니다.
 - 짠게이지는 `charts` metadata로 저장: 노트 수가 1536개를 넘는 채보에서 적용되므로 같은 곡이라도 높은 난이도만 짠게이지일 수 있음
 - 짠판정도 난이도별 차이 가능성을 열어두고 `charts` metadata 우선
-- playdata는 현재 버전 베스트와 역대 베스트를 분리: `best_type`, `target_version`, `score_version`을 저장
-- High☆Cheers에서 처음 점수 초기화가 확인됐지만 이후 버전에서도 반복될 수 있다고 보고 모델과 API를 일반화
+- playdata는 `user_id + chart_id`당 1 row current state로 관리: `current_version`, `version_score`, `all_time_score`, `all_time_score_version`, `medal_code`를 저장
+- playdata_history는 기록 갱신, 메달 변경, 버전 초기화/승계 같은 의미 있는 변화만 append하고 `game_version`을 반드시 저장
+- High☆Cheers에서 처음 점수 초기화가 확인됐지만 이후 버전에서는 초기화가 없을 수도 있으므로 `game_version_transitions.score_policy`로 `RESET` 또는 `CARRY_OVER`를 선언
 - 기존 DB playdata는 28버전 점수로 마이그레이션하고, 앞으로 크롤링한 점수는 무조건 현재 버전 기록으로 저장
 - 유저는 `users`와 `user_profiles` 2테이블로 분리: `users`는 계정/인증/권한, `user_profiles`는 공개 프로필/랭킹 표시 캐시/credit
-- `user_profiles`는 팝클을 3개 보유: `display_popclass`는 현재 표기용, `potential_popclass`는 `ALL_TIME_BEST` 기준 포텐셜, `legacy_popclass`는 28버전 이전 기존 값
+- `user_profiles`는 팝클을 3개 보유: `display_popclass`는 현재 버전 `version_score` 기준, `potential_popclass`는 `all_time_score` 기준 포텐셜, `legacy_popclass`는 28버전 이전 기존 값
 - credit은 `user_profiles`에 High☆Cheers 기준 4종으로 저장: `normal_credit`, `extra_credit`, `time_play_10_credit`, `time_play_16_credit`. 기존 credit/코인수는 마이그레이션에서 0으로 초기화
 - songhash 정책 재검토: 기존에는 장르명/제목이 불변이라는 가정이 있었지만 이제는 변경 가능. `song_hash`는 내부 참조 기준이 아니라 외부 조회 alias로 보고 `song_id`, `chart_id` 중심으로 연결
 - 유저 비밀번호: 기존 저장값의 성격이 불명확하므로 일괄 재해싱을 확정하지 않음. 점진 재해싱, legacy 검증 후 업그레이드, 강제 재설정 중 결정 필요
@@ -96,7 +97,7 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 긴 작업: 플레이데이터 갱신, BOT 데이터 재계산, 테이블 생성, 이미지 fetch/S3 업로드는 request thread와 분리하고 job/worker/executor 기준으로 처리
 - executor: 모든 queue는 bounded, rejection policy와 timeout을 명시하고 queue depth/rejected count를 모니터링
 - API 응답: 프론트에서 데이터 가공하지 않도록 백엔드에서 계산/그룹핑/표시 데이터 제공
-- playdata 조회 API는 `VERSION_BEST`와 `ALL_TIME_BEST`를 응답에서 분리해 함께 내려주는 방향. 팝클 API도 계산 기준은 version best이지만 포함 playdata는 두 스코프를 함께 제공
+- playdata 조회 API는 한 row에서 `versionBest`, `allTimeBest`, `medal`을 응답 객체로 분리해 함께 내려주는 방향. 팝클 API 계산 기준은 현재 버전 `version_score`
 
 ## 열린 질문
 
@@ -105,9 +106,10 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 짠판정은 Song metadata로 충분한가, Chart metadata가 필요한가?
 - 이메일 인증을 MVP 1차에 포함할 것인가, 이메일 등록 후 복구만 먼저 열 것인가?
 - 갱신 코드는 KONAMI가 JSON을 제공하는지에 따라 구현 방식이 달라지는가?
-- 기존 playdata를 28버전 `VERSION_BEST` row로도 복제할 것인가, MVP에서는 `ALL_TIME_BEST`만 보존할 것인가?
+- 기존 history를 얼마나 복원할지, 마이그레이션 초기 이벤트만 남길지 결정할 것인가?
 - 기존 비밀번호 저장값을 어떤 방식으로 검증하고 신규 hash로 전환할 것인가?
 - 곡 라이브서치의 MVP 검색 엔진은 Redis read model, local memory index, MySQL 중 무엇으로 할 것인가?
+- 신규 게임 버전 전환 시 `RESET`/`CARRY_OVER` 정책은 누가 어떤 근거로 확정할 것인가?
 
 ## 코드 수정 시 주의
 
@@ -119,13 +121,14 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - outbound 의존성은 application port로 정의하고 infra adapter에서 구현합니다.
 - rank, medal, difficulty는 정수 코드와 표시 label을 분리합니다.
 - rank는 score에서 계산하지 말고 갱신 원천 데이터에서 받은 값을 저장합니다.
-- playdata 저장 시 `best_type`, `target_version`, `score_version`을 누락하지 않습니다.
-- 현재 버전 크롤링 점수는 현재 버전 `VERSION_BEST`에 upsert하고, 역대 최고를 넘는 경우 `ALL_TIME_BEST`도 갱신합니다.
-- `display_popclass`는 현재 버전 `VERSION_BEST`, `potential_popclass`는 `ALL_TIME_BEST`, `legacy_popclass`는 28버전 이전 기존 값을 기준으로 관리합니다.
+- playdata 저장 시 `current_version`, `version_score`, `all_time_score`, `all_time_score_version`, `medal_code`를 누락하지 않습니다.
+- 서버 현재 버전과 `playdata.current_version`이 다르면 `game_version_transitions` 정책을 먼저 확인하고, 정책이 없으면 임의로 초기화/승계하지 않습니다.
+- 현재 버전 크롤링 점수는 `version_score` 후보로 처리하고, 역대 최고를 넘는 경우 `all_time_score`도 갱신합니다.
+- `display_popclass`는 현재 버전 `version_score`, `potential_popclass`는 `all_time_score`, `legacy_popclass`는 28버전 이전 기존 값을 기준으로 관리합니다.
 - 위 팝클 3종과 credit 4종은 `users`가 아니라 `user_profiles`에 저장합니다.
 - 마이그레이션 시 `potential_popclass`를 반드시 한 번 계산해 채웁니다.
-- 갱신 데이터로 `ALL_TIME_BEST`가 변경되면 `potential_popclass`를 반드시 재계산합니다.
-- 현재 버전 `VERSION_BEST` 갱신 후 서버가 `charts.chart_version` 기준으로 이번 버전 채보 20개, 구버전 채보 40개를 선정해 `playdata.is_display_popclass_target`, `popclass_bucket`, `popclass_bucket_rank`를 마킹합니다.
+- 갱신 데이터로 `all_time_score`가 변경되면 `potential_popclass`를 반드시 재계산합니다.
+- 현재 버전 `version_score` 갱신 후 서버가 `charts.chart_version` 기준으로 이번 버전 채보 20개, 구버전 채보 40개를 선정해 `playdata.is_display_popclass_target`, `popclass_bucket`, `popclass_bucket_rank`를 마킹합니다.
 - 크롤러/API 입력은 `popclass_bucket`을 보내지 않습니다. bucket은 서버 계산값입니다.
 - 비밀번호 복구 token 원문은 DB에 저장하지 않고 hash만 `password_reset_tokens`에 저장합니다.
 - password, reset token 원문, JWT secret, 외부 민감 header는 로그와 DB에 저장하지 않습니다.

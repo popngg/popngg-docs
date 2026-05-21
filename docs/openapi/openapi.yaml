@@ -445,12 +445,11 @@ paths:
       tags:
         - Playdata
       summary: 레벨/난이도별 메달 또는 랭크 개수
-      description: 기본 응답은 현재 버전 베스트와 역대 베스트 집계를 함께 제공합니다. 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있습니다.
+      description: 현재 버전 점수와 유지 메달 기준 집계를 제공합니다. 게임 버전은 `gameVersion`으로 좁힐 수 있습니다.
       operationId: countPlaydata
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
-        - $ref: "#/components/parameters/BestType"
-        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/GameVersion"
         - name: groupBy
           in: query
           required: true
@@ -486,7 +485,7 @@ paths:
       operationId: getPopclassTable
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
-        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/GameVersion"
       responses:
         "200":
           description: 유저 팝클과 상위 50개 플레이데이터
@@ -500,12 +499,11 @@ paths:
       tags:
         - Playdata
       summary: 유저의 전체 데이터
-      description: 기본 응답은 `versionBest`와 `allTimeBest`를 분리해 함께 제공합니다. 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있습니다.
+      description: 각 playdata row에 `versionBest`, `allTimeBest`, `medal`을 함께 제공합니다.
       operationId: getAllPlaydata
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
-        - $ref: "#/components/parameters/BestType"
-        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/GameVersion"
         - $ref: "#/components/parameters/DifficultyCodeQuery"
         - $ref: "#/components/parameters/IsUpper"
         - $ref: "#/components/parameters/Page"
@@ -527,8 +525,7 @@ paths:
       operationId: getChartMainPlaydata
       parameters:
         - $ref: "#/components/parameters/ChartId"
-        - $ref: "#/components/parameters/BestType"
-        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/GameVersion"
         - name: rankingLimit
           in: query
           schema:
@@ -555,13 +552,12 @@ paths:
       tags:
         - Playdata
       summary: 유저의 특정 채보 히스토리
-      description: 기본 응답은 `versionBestHistories`와 `allTimeBestHistories`를 분리해 함께 제공합니다. 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있습니다.
+      description: 기록 갱신, 메달 변경, 버전 초기화/승계 이벤트를 `gameVersion`과 함께 제공합니다.
       operationId: getPlaydataHistory
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
         - $ref: "#/components/parameters/ChartId"
-        - $ref: "#/components/parameters/BestType"
-        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/GameVersion"
       responses:
         "200":
           description: 플레이데이터 히스토리
@@ -575,7 +571,7 @@ paths:
       tags:
         - Playdata
       summary: 여러 유저 플레이데이터 비교
-      description: 기본 응답은 사용자별 현재 버전 베스트와 역대 베스트를 함께 제공합니다. 특정 스코프만 필요하면 `bestType`으로 좁힐 수 있습니다.
+      description: 사용자별 현재 버전 점수, 역대 최고 점수, 유지 메달을 함께 제공합니다.
       operationId: comparePlaydata
       parameters:
         - name: poptomoIds
@@ -588,8 +584,7 @@ paths:
           style: form
           explode: false
           example: "123456789,987654321"
-        - $ref: "#/components/parameters/BestType"
-        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/GameVersion"
         - $ref: "#/components/parameters/DifficultyCodeQuery"
         - $ref: "#/components/parameters/IsUpper"
       responses:
@@ -688,8 +683,7 @@ paths:
       operationId: getChartRankings
       parameters:
         - $ref: "#/components/parameters/ChartId"
-        - $ref: "#/components/parameters/BestType"
-        - $ref: "#/components/parameters/TargetVersion"
+        - $ref: "#/components/parameters/GameVersion"
         - name: rankingLimit
           in: query
           schema:
@@ -739,6 +733,80 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/MigrationStatusResponse"
+
+  /admin/game-version-transitions:
+    get:
+      tags:
+        - Admin
+      summary: 게임 버전 전환 정책 목록
+      description: 버전 전환 시 점수 초기화 또는 승계 정책을 조회합니다.
+      operationId: listGameVersionTransitions
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: 게임 버전 전환 정책 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameVersionTransitionListResponse"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags:
+        - Admin
+      summary: 게임 버전 전환 정책 등록
+      description: 신규 버전에서 점수를 초기화할지 이전 버전 점수를 승계할지 선언합니다.
+      operationId: createGameVersionTransition
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGameVersionTransitionRequest"
+      responses:
+        "200":
+          description: 게임 버전 전환 정책 등록 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameVersionTransitionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /admin/game-version-transitions/{transitionId}/apply:
+    post:
+      tags:
+        - Admin
+      summary: 게임 버전 전환 정책 적용
+      description: 등록된 전환 정책에 따라 playdata.current_version과 version_score를 chunk 단위로 전환합니다.
+      operationId: applyGameVersionTransition
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: transitionId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: 게임 버전 전환 정책 적용 성공
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameVersionTransitionResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
 components:
   securitySchemes:
@@ -873,21 +941,12 @@ components:
       schema:
         type: boolean
       description: 짠판정 채보 필터입니다.
-    BestType:
-      name: bestType
-      in: query
-      schema:
-        type: string
-        enum:
-          - VERSION_BEST
-          - ALL_TIME_BEST
-      description: 현재 버전 베스트 또는 역대 베스트 조회 스코프입니다. 생략 시 두 스코프를 함께 내려주고, 필요할 때만 특정 스코프로 좁힙니다.
-    TargetVersion:
-      name: targetVersion
+    GameVersion:
+      name: gameVersion
       in: query
       schema:
         type: integer
-      description: VERSION_BEST 대상 버전입니다. ALL_TIME_BEST에서는 0을 사용합니다. 생략 시 서버의 현재 버전을 사용합니다.
+      description: 조회할 게임 버전입니다. 생략 시 서버의 현재 버전을 사용합니다.
     Page:
       name: page
       in: query
@@ -1586,24 +1645,13 @@ components:
           $ref: "#/components/schemas/GroupedChart"
         chart:
           $ref: "#/components/schemas/ChartSummary"
-        bestType:
-          type: string
-          enum:
-            - VERSION_BEST
-            - ALL_TIME_BEST
-          description: 현재 버전 베스트인지 역대 베스트인지 구분합니다.
-        targetVersion:
+        currentVersion:
           type: integer
-          description: VERSION_BEST 대상 버전. ALL_TIME_BEST는 0입니다.
           example: 29
-        scoreVersion:
-          type: integer
-          description: 해당 점수가 실제로 나온 게임 버전입니다.
-          example: 29
-        score:
-          type: integer
-        rank:
-          $ref: "#/components/schemas/RankConstant"
+        versionBest:
+          $ref: "#/components/schemas/VersionBestPlaydata"
+        allTimeBest:
+          $ref: "#/components/schemas/AllTimeBestPlaydata"
         medal:
           $ref: "#/components/schemas/MedalConstant"
         popclass:
@@ -1625,6 +1673,24 @@ components:
         updatedAt:
           type: string
           format: date-time
+    VersionBestPlaydata:
+      type: object
+      properties:
+        score:
+          type: integer
+        rank:
+          $ref: "#/components/schemas/RankConstant"
+        gameVersion:
+          type: integer
+    AllTimeBestPlaydata:
+      type: object
+      properties:
+        score:
+          type: integer
+        rank:
+          $ref: "#/components/schemas/RankConstant"
+        scoreVersion:
+          type: integer
     UserPlaydataResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -1741,14 +1807,7 @@ components:
           $ref: "#/components/schemas/RankConstant"
         medal:
           $ref: "#/components/schemas/MedalConstant"
-        bestType:
-          type: string
-          enum:
-            - VERSION_BEST
-            - ALL_TIME_BEST
-        targetVersion:
-          type: integer
-        scoreVersion:
+        gameVersion:
           type: integer
         popclass:
           type: integer
@@ -1777,23 +1836,14 @@ components:
                   $ref: "#/components/schemas/GroupedChart"
                 chart:
                   $ref: "#/components/schemas/ChartSummary"
-                versionBestHistories:
-                  type: array
-                  items:
-                    $ref: "#/components/schemas/PlaydataHistoryItem"
-                allTimeBestHistories:
+                histories:
                   type: array
                   items:
                     $ref: "#/components/schemas/PlaydataHistoryItem"
     ScopedPlaydataPage:
       type: object
       properties:
-        bestType:
-          type: string
-          enum:
-            - VERSION_BEST
-            - ALL_TIME_BEST
-        targetVersion:
+        gameVersion:
           type: integer
         items:
           type: array
@@ -1804,12 +1854,7 @@ components:
     ScopedPlaydataPageLite:
       type: object
       properties:
-        bestType:
-          type: string
-          enum:
-            - VERSION_BEST
-            - ALL_TIME_BEST
-        targetVersion:
+        gameVersion:
           type: integer
         items:
           type: array
@@ -1818,12 +1863,7 @@ components:
     ScopedPlaydataBucketed:
       type: object
       properties:
-        bestType:
-          type: string
-          enum:
-            - VERSION_BEST
-            - ALL_TIME_BEST
-        targetVersion:
+        gameVersion:
           type: integer
         items:
           type: array
@@ -1836,12 +1876,7 @@ components:
     ScopedPlaydataCounts:
       type: object
       properties:
-        bestType:
-          type: string
-          enum:
-            - VERSION_BEST
-            - ALL_TIME_BEST
-        targetVersion:
+        gameVersion:
           type: integer
         levels:
           type: array
@@ -1864,17 +1899,20 @@ components:
     PlaydataHistoryItem:
       type: object
       properties:
-        score:
+        gameVersion:
           type: integer
-        bestType:
-          type: string
-          enum:
-            - VERSION_BEST
-            - ALL_TIME_BEST
-        targetVersion:
+        previousVersionScore:
           type: integer
-        scoreVersion:
+          nullable: true
+        versionScore:
           type: integer
+          nullable: true
+        previousAllTimeScore:
+          type: integer
+          nullable: true
+        allTimeScore:
+          type: integer
+          nullable: true
         rank:
           $ref: "#/components/schemas/RankConstant"
         medal:
@@ -1885,9 +1923,13 @@ components:
           type: string
           enum:
             - REGISTER
+            - VERSION_INITIALIZED
+            - VERSION_CARRIED_OVER
             - SCORE_UP
-            - RANK_UP
-            - MEDAL_UP
+            - ALL_TIME_SCORE_UP
+            - RANK_CHANGED
+            - MEDAL_CHANGED
+            - MIGRATION
             - MANUAL
         createdAt:
           type: string
@@ -1947,6 +1989,79 @@ components:
                   type: string
                 key:
                   type: string
+
+    CreateGameVersionTransitionRequest:
+      type: object
+      required:
+        - fromVersion
+        - toVersion
+        - scorePolicy
+      properties:
+        fromVersion:
+          type: integer
+          example: 29
+        toVersion:
+          type: integer
+          example: 30
+        scorePolicy:
+          type: string
+          enum:
+            - RESET
+            - CARRY_OVER
+        memo:
+          type: string
+          nullable: true
+          example: 29 -> 30 전환에서 기록 초기화 없음 확인
+    GameVersionTransition:
+      type: object
+      properties:
+        transitionId:
+          type: integer
+          format: int64
+        fromVersion:
+          type: integer
+        toVersion:
+          type: integer
+        scorePolicy:
+          type: string
+          enum:
+            - RESET
+            - CARRY_OVER
+        status:
+          type: string
+          enum:
+            - DRAFT
+            - APPLIED
+            - CANCELLED
+        affectedPlaydataCount:
+          type: integer
+          nullable: true
+        historyCreatedCount:
+          type: integer
+          nullable: true
+        memo:
+          type: string
+          nullable: true
+        appliedAt:
+          type: string
+          format: date-time
+          nullable: true
+    GameVersionTransitionResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/GameVersionTransition"
+    GameVersionTransitionListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: "#/components/schemas/GameVersionTransition"
 
     MigrationStatusResponse:
       allOf:

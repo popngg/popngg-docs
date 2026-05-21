@@ -86,11 +86,11 @@ High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었고, 앞
 
 - 기존 DB의 플레이데이터는 28버전에서 나온 기록으로 마이그레이션합니다.
 - 새로 크롤링한 score는 항상 현재 버전에서 나온 점수로 저장합니다.
-- `playdata`에는 `best_type`, `target_version`, `score_version`을 둬서 현재 버전 베스트와 역대 베스트를 구분합니다.
-- 조회 API도 이 구조를 그대로 반영해야 합니다. 현재 버전 비교만 필요한 API는 `VERSION_BEST`를 기본으로 쓰고, 유저 전체 데이터나 차트 상세처럼 두 스코프를 함께 보여줘야 하는 화면은 `VERSION_BEST`와 `ALL_TIME_BEST`를 응답에서 분리해 함께 내려줍니다.
-- 팝클은 현재 버전 기준으로 계산하므로, `ALL_TIME_BEST`가 아니라 현재 버전 `VERSION_BEST`가 source of truth입니다.
-- 포텐셜 팝클래스는 `ALL_TIME_BEST` 기준으로 별도 계산합니다.
-- 마이그레이션 시 기존 기록을 `ALL_TIME_BEST`로 넣은 뒤 포텐셜 팝클래스를 한 번 계산해야 합니다.
+- `playdata`는 `user_id + chart_id`당 현재 상태 1 row를 유지하고, 현재 버전 점수는 `version_score`, 역대 최고 점수는 `all_time_score`, 유지 메달은 `medal_code`로 저장합니다.
+- 조회 API도 이 구조를 그대로 반영해야 합니다. 유저 전체 데이터나 차트 상세처럼 두 기준을 함께 보여줘야 하는 화면은 같은 row에서 `versionBest`, `allTimeBest`, `medal`을 분리해 내려줍니다.
+- 팝클은 현재 버전 기준으로 계산하므로, `all_time_score`가 아니라 현재 버전 `version_score`가 source of truth입니다.
+- 포텐셜 팝클래스는 `all_time_score` 기준으로 별도 계산합니다.
+- 마이그레이션 시 기존 기록을 `version_score`와 `all_time_score`에 넣은 뒤 포텐셜 팝클래스를 한 번 계산해야 합니다.
 - 이후 갱신 데이터가 역대 베스트를 바꾸면 포텐셜 팝클래스도 다시 계산해야 합니다.
 - 현재 표기 팝클에 들어가는 이번 버전 채보 20개, 구버전 채보 40개는 서버가 선정하고 `playdata`에 마킹합니다.
 - 같은 song이라도 Upper가 나온 버전은 다를 수 있으므로, 신곡/구곡 판정은 `songs.version`이 아니라 `charts.chart_version`을 기준으로 합니다.
@@ -202,8 +202,9 @@ MVP DDL에 모두 넣지는 않습니다. 다만 `bpm`, `character`, `release_da
 | `difficulty` | chart 매칭 |
 | `level` | chart metadata와 popclass 계산 |
 | `score` | playdata |
-| `scoreVersion` | 점수가 나온 게임 버전. 크롤링 점수는 현재 버전 |
-| `bestType` | 현재 버전 베스트와 역대 베스트 구분 |
+| `gameVersion` | 점수가 관측된 게임 버전. 크롤링 점수는 현재 버전 |
+| `versionScore` | 현재 버전 베스트 점수 |
+| `allTimeScore` | 역대 최고 점수 |
 | `rankCode` | 서버 계산 금지, 원천값 저장 |
 | `medalCode` | 서버 계산 금지, 원천값 저장 |
 | `normalCredit` | `NORMAL` credit |
@@ -216,8 +217,8 @@ MVP DDL에 모두 넣지는 않습니다. 다만 `bpm`, `character`, `release_da
 
 조회 API 설계 원칙:
 
-- playdata를 보여주는 API는 `VERSION_BEST`와 `ALL_TIME_BEST`를 함께 내려주는 것을 기본으로 합니다.
-- 특정 스코프만 필요할 때만 query parameter로 좁힙니다.
+- playdata를 보여주는 API는 `versionBest`, `allTimeBest`, `medal`을 함께 내려주는 것을 기본으로 합니다.
+- 특정 게임 버전만 필요할 때만 `gameVersion` query parameter로 좁힙니다.
 - 곡별 랭킹 API도 현재 버전 랭킹과 역대 랭킹을 동시에 보여줄 수 있어야 합니다.
 
 ### songhash 재검토 포인트

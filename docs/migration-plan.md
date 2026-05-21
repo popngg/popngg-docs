@@ -62,7 +62,7 @@ db/migration/
 | --- | --- |
 | `V1__baseline_account_and_security.sql` | `users`, `password_reset_tokens`, 인증/계정 관련 인덱스 |
 | `V2__baseline_music_catalog.sql` | `songs`, `charts`, 곡/채보 인덱스 |
-| `V3__baseline_playdata_and_logs.sql` | `playdata`, `playdata_history`, `renew_logs`, `login_logs` |
+| `V3__baseline_playdata_and_logs.sql` | `playdata`, `game_version_transitions`, `playdata_history`, `renew_logs`, `login_logs` |
 | `V4__baseline_support_tables.sql` | mapping/검증 보조 테이블이 DB에 필요할 경우 |
 | `V5__seed_constants.sql` | rank/medal/difficulty seed를 DB로 둘 경우. MVP에서 코드 상수면 생략 가능 |
 
@@ -96,9 +96,10 @@ db/migration/
 - `songs.version`은 원곡 또는 곡 그룹의 최초 수록 버전으로 적재하고, Upper처럼 나중에 추가된 채보의 버전은 `charts.chart_version`으로 분리해 적재
 - 기존 `playdata.chart_id`를 신규 `charts.chart_id`로 매핑하는 테이블 또는 파일 작성
 - 기존 `playdata`를 28버전 기록으로 변환하는 스크립트 작성
-- `playdata.best_type`, `playdata.target_version`, `playdata.score_version` 적재 정책 반영
+- `playdata.current_version`, `version_score`, `all_time_score`, `all_time_score_version`, `medal_code` 적재 정책 반영
+- 초기 seed로 `28 -> 29` 전환은 `RESET` 정책을 등록하고, 이후 버전은 운영자가 `RESET` 또는 `CARRY_OVER`로 확정합니다.
 - 기존 `"user"`를 `users`와 `user_profiles`로 분리 적재하는 스크립트 작성
-- 기존 playdata를 `ALL_TIME_BEST`로 적재한 뒤 `user_profiles.potential_popclass`를 계산하는 스크립트 작성
+- 기존 playdata를 28버전 current state로 적재한 뒤 `user_profiles.potential_popclass`를 계산하는 스크립트 작성
 - 기존 credit/코인수는 신규 High☆Cheers credit으로 매핑하지 않고 0으로 초기화
 - 기존 유저 비밀번호 저장값의 성격을 확인하고, 확정된 전환 방식에 따라 재해싱 또는 재설정 플로우 적용
 - old/new songhash 매핑 테이블 또는 산출물 생성
@@ -118,7 +119,8 @@ db/migration/
 | Identity Mapping | song dedupe, chart mapping, old/new songhash mapping, user mapping, Upper chart version mapping |
 | Data Transform | users/user_profiles 이전, password 전환 정책 적용, 기존 credit/코인수 0 초기화, songs/charts 적재, `songs.version`/`charts.chart_version` 분리, playdata 적재, history 적재, logs 이전 |
 | Jacket Asset Migration | 기존 S3 `oldSongHash` 자켓을 신규 `newSongHash` key로 copy/upload, `songs.jacket_url` 갱신, old/new jacket key mapping 저장 |
-| Playdata Transform | 기존 점수 `score_version = 28`, `ALL_TIME_BEST` 생성, 필요 시 28버전 `VERSION_BEST` 복제 |
+| Playdata Transform | 기존 점수 기준 `current_version = 28`, `version_score = 기존 score`, `all_time_score = 기존 score`, `all_time_score_version = 28` 생성, 필요 시 `playdata_history(MIGRATION)` 생성 |
+| Version Transition Seed | `game_version_transitions(from_version = 28, to_version = 29, score_policy = RESET)` seed 등록 |
 | Popclass Rebuild | `legacy_popclass` 보존, `potential_popclass` 계산, 필요 시 `display_popclass` 초기화 |
 | Verification | row count 비교, orphan check, unique violation check, popclass 재계산 diff |
 
@@ -145,11 +147,11 @@ db/migration/
 - songhash 후보별 중복 여부 확인
 - 신규 unique 제약 위반 여부 확인
 - 비밀번호 복구 이메일 nullable/unique 동작 확인
-- 기존 `playdata`가 `score_version = 28`로 들어갔는지 확인
-- 현재 버전 `VERSION_BEST`와 `ALL_TIME_BEST` 스코프가 중복 없이 생성되는지 확인
+- 기존 `playdata`가 `current_version = 28`, `version_score = 기존 score`, `all_time_score = 기존 score`, `all_time_score_version = 28`로 들어갔는지 확인
+- `playdata`가 `user_id + chart_id` 기준으로 중복 없이 생성되는지 확인
 - `user_profiles.legacy_popclass`가 기존 `"user".popclass`를 보존하는지 확인
-- `potential_popclass`가 `ALL_TIME_BEST` 기준으로 계산되었는지 확인
-- `display_popclass`가 현재 버전 `VERSION_BEST` 기준으로 계산되는지 확인
+- `potential_popclass`가 `all_time_score` 기준으로 계산되었는지 확인
+- `display_popclass`가 현재 버전 `version_score` 기준으로 계산되는지 확인
 - 신규 credit 4종이 모두 0으로 초기화되었는지 확인. 기존 `normal/battle/local` 값이 임의로 섞이지 않았는지 확인
 - 모든 기존 자켓이 신규 `song_hash` 기반 S3 key로 생성되었는지 확인
 - `songs.jacket_url` 또는 `jacket_key`가 신규 key를 가리키는지 확인
@@ -162,12 +164,12 @@ db/migration/
 | 컬럼 | 검증 기준 |
 | --- | --- |
 | `legacy_popclass` | 기존 DB의 `user.popclass`와 동일해야 합니다. |
-| `potential_popclass` | 신규 `playdata`의 `ALL_TIME_BEST` 상위 50개 기준 계산값이어야 합니다. |
-| `display_popclass` | 현재 버전 `VERSION_BEST` 상위 50개 기준 계산값이어야 합니다. 전환 직후 현재 버전 기록이 없으면 0 또는 정책상 초기값을 사용합니다. |
+| `potential_popclass` | 신규 `playdata.all_time_score` 상위 50개 기준 계산값이어야 합니다. |
+| `display_popclass` | 현재 버전 `playdata.version_score` 상위 50개 기준 계산값이어야 합니다. 전환 직후 현재 버전 기록이 없으면 0 또는 정책상 초기값을 사용합니다. |
 
 위 3개 컬럼은 `user_profiles`에 저장합니다.
 
-`potential_popclass`는 마이그레이션 완료 조건입니다. 기존 기록을 `ALL_TIME_BEST`로 적재했다면 반드시 한 번 계산해 저장해야 하며, 계산 실패 유저가 있으면 세션을 성공 처리하지 않습니다.
+`potential_popclass`는 마이그레이션 완료 조건입니다. 기존 기록을 `all_time_score`로 적재했다면 반드시 한 번 계산해 저장해야 하며, 계산 실패 유저가 있으면 세션을 성공 처리하지 않습니다.
 
 ### 5. 애플리케이션 라우팅 스위치
 
