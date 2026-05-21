@@ -1,5 +1,22 @@
 # 데이터 모델링
 
+이 문서는 DB DDL보다 한 단계 위에서, 도메인별 데이터 책임과 변경 이유를 설명합니다. 최종 컬럼과 인덱스는 [MVP DB 설계 초안](mvp-db-design.md)을 기준으로 하고, 이 문서는 모델링 의도와 정책을 이해하는 용도로 사용합니다.
+
+<div class="doc-summary">
+  <div class="doc-summary__item">
+    <strong>읽는 목적</strong>
+    <p>왜 song/chart를 분리하고, 왜 playdata를 current state와 history로 나누는지 이해합니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>확정 방향</strong>
+    <p>users + user_profiles 2테이블, song_search_tags, version/all-time score 분리, S3 jacket key 재생성 정책입니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>세부 DDL</strong>
+    <p>실제 타입, 제약, 인덱스, DDL 초안은 DB 설계 문서에서 관리합니다.</p>
+  </div>
+</div>
+
 ## 가장 크게 바뀌는 영역
 
 - High☆Cheers 기준 게임 시스템 반영

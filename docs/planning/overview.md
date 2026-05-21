@@ -1,5 +1,20 @@
 # 프로젝트 개요
 
+<div class="doc-summary">
+  <div class="doc-summary__item">
+    <strong>프로젝트 성격</strong>
+    <p>레거시를 보수하는 작업이 아니라, popn.gg를 새 기준으로 다시 설계하는 리팩토링입니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>우선 반영</strong>
+    <p>High☆Cheers의 게임 시스템 변화, song/chart 분리, playdata 저장 정책, 신규 운영 방식을 우선합니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>비목표</strong>
+    <p>MVP에서 레거시 API 복제, 모든 관리자 UI, 모든 검색 태그 기여 기능을 한 번에 만들지 않습니다.</p>
+  </div>
+</div>
+
 ## 목적
 
 popn.gg는 pop'n music 플레이어가 곡, 채보, 플레이데이터, 팝클, 랭킹 정보를 확인할 수 있는 서비스입니다.

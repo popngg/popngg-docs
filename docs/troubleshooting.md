@@ -4,6 +4,36 @@
 
 레거시 코드는 참고 자료입니다. 새 프로젝트의 기준은 이 문서와 설계 문서에서 다시 확정합니다.
 
+<div class="doc-summary">
+  <div class="doc-summary__item">
+    <strong>읽는 목적</strong>
+    <p>레거시에서 어떤 문제가 있었고, 새 프로젝트에서 어떤 구조로 재발을 막을지 확인합니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>핵심 개선</strong>
+    <p>전체 조회 제거, DTO projection/Querydsl, 페이지네이션, 캐싱, bounded executor, 관측 지표를 도입합니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>주의</strong>
+    <p>원인 추정은 코드와 기억에 기반한 가설입니다. 구현 전 부하 테스트와 로그로 다시 검증합니다.</p>
+  </div>
+</div>
+
+## 문제 요약
+
+| 번호 | 문제 | 신규 프로젝트 대응 |
+| --- | --- | --- |
+| 1 | 전체 플레이데이터 조회가 대용량 유저에서 느림 | 필터링, 페이지네이션, DTO projection, 필요한 필드만 조회 |
+| 2 | 통계 API가 애플리케이션에서 전체 데이터를 계산 | DB 집계, Querydsl, read model 후보 |
+| 3 | 팝클표가 top 50만 필요한데 전체 정렬 | 서버 산정 대상 마킹, 제한된 조회 |
+| 4 | 갱신 요청이 request thread와 DB connection을 오래 점유 | 갱신 job 분리, 상태 조회 API |
+| 5 | thread pool 고갈로 서버가 불안정 | bounded executor, timeout, queue/rejected 지표 |
+| 6 | songHash가 곡명/장르명 변경에 취약 | 내부 참조는 `song_id`/`chart_id`, hash는 외부 alias |
+| 7 | S3 자켓 key가 songHash에 종속 | 신규 hash key로 copy/upload, 기존 object 보존 |
+| 8 | 점수와 메달 생명주기가 다름 | version best, all-time best, medal 분리 |
+| 9 | 운영/배포가 수동 절차 중심 | Jenkins, Docker, Flyway, 관측 스택 도입 |
+| 10 | 검색을 클라이언트 전체 데이터 검색에 의존 | 백엔드 검색 API와 Redis/read model 후보 |
+
 ## 기록 방식
 
 각 항목은 다음 순서로 기록합니다.
@@ -606,7 +636,7 @@ MVP 기준:
 
 ## 다음에 추가할 항목
 
-새로운 문제를 발견하면 아래 형식으로 추가합니다.
+새로운 문제를 발견하면 아래 형식으로 추가합니다. 비밀번호 전환, Redis 검색 cache 불일치, S3 자켓 migration 실패, Flyway 실패 대응, OpenAPI drift는 구현 중 별도 case로 승격할 후보입니다.
 
 ```markdown
 ## N. 문제 제목

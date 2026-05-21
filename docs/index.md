@@ -1,74 +1,131 @@
-<section class="doc-hero">
-  <span class="doc-hero__eyebrow">popn.gg Refactor Docs</span>
-  <h1>popn.gg 문서 허브</h1>
-  <p>
-    popn.gg는 아케이드 리듬게임 <code>pop'n music</code>의 곡, 채보, 플레이데이터, 랭킹 정보를 제공하는 서비스입니다.
-    이 문서는 High☆Cheers 리팩토링을 정리하면서, 추후 오픈소스 공개에도 사용할 수 있는 프로젝트 문서 허브로 관리합니다.
-  </p>
+<section class="landing-hero">
+  <div class="landing-hero__copy">
+    <span class="eyebrow">popn.gg Refactor Docs</span>
+    <h1>popn.gg 리팩토링 문서</h1>
+    <p>
+      이 문서는 <code>popngg-old</code>를 참고 자료로 두고, High☆Cheers 이후의 popn.gg를
+      새 프로젝트 기준으로 다시 설계하기 위한 작업 공간입니다. 기획, 데이터 모델, API, 운영,
+      컨벤션을 구현 전에 먼저 합의하는 것을 목표로 합니다.
+    </p>
+    <div class="hero-actions">
+      <a class="button button--primary" href="planning/">기획부터 보기</a>
+      <a class="button button--ghost" href="design/">설계 문서 보기</a>
+    </div>
+  </div>
+  <div class="landing-hero__panel">
+    <span class="panel-label">Current Focus</span>
+    <strong>문서 우선 리팩토링</strong>
+    <p>레거시 기준을 그대로 계승하지 않고, 현재 운영·배포·게임 정책에 맞춰 다시 결정합니다.</p>
+  </div>
 </section>
 
-<div class="doc-grid doc-grid--wide">
-  <a class="doc-card" href="planning/">
-    <span class="doc-card__eyebrow">Planning</span>
-    <strong>기획</strong>
-    <p>프로젝트 목표, MVP 범위, High☆Cheers 게임 시스템 정책을 정리합니다.</p>
-  </a>
-  <a class="doc-card" href="meetings/">
-    <span class="doc-card__eyebrow">Discussion</span>
-    <strong>회의해야 할 것</strong>
-    <p>아직 확정하지 않은 설계 쟁점과 회의에서 결정할 질문을 모읍니다.</p>
-  </a>
-  <a class="doc-card" href="design/">
-    <span class="doc-card__eyebrow">Design</span>
-    <strong>설계</strong>
-    <p>아키텍처, DB 모델링, 마이그레이션 전략, 의사결정 기록을 모읍니다.</p>
-  </a>
-  <a class="doc-card" href="api/">
-    <span class="doc-card__eyebrow">API</span>
-    <strong>API</strong>
-    <p>API 설계 원칙, 엔드포인트 초안, Redoc 기반 API Reference를 제공합니다.</p>
-  </a>
-  <a class="doc-card" href="conventions/">
-    <span class="doc-card__eyebrow">Convention</span>
-    <strong>컨벤션</strong>
-    <p>문서, 코드, DB, Git 운영 규칙을 공개 가능한 형태로 정리합니다.</p>
-  </a>
-  <a class="doc-card" href="operations/">
-    <span class="doc-card__eyebrow">Operations</span>
-    <strong>운영</strong>
-    <p>Jenkins, Docker, Flyway 기반 배포와 운영 체크리스트를 관리합니다.</p>
-  </a>
-  <a class="doc-card" href="llm-context/">
-    <span class="doc-card__eyebrow">LLM</span>
-    <strong>LLM 컨텍스트</strong>
-    <p>Codex/LLM이 구현 전에 읽을 압축된 프로젝트 컨텍스트입니다.</p>
-  </a>
-</div>
+<section class="doc-section">
+  <div class="section-heading">
+    <span class="eyebrow">Start Here</span>
+    <h2>추천 읽기 순서</h2>
+    <p>처음 들어온 팀원이 길을 잃지 않도록, 의사결정 흐름에 맞춰 읽는 순서를 정리했습니다.</p>
+  </div>
 
-## 현재 리팩토링 핵심
+  <div class="reading-path">
+    <a class="path-step" href="planning/overview/">
+      <span>01</span>
+      <strong>프로젝트 개요</strong>
+      <p>왜 새로 시작하는지, 레거시는 어디까지 참고할지 확인합니다.</p>
+    </a>
+    <a class="path-step" href="planning/service-research/">
+      <span>02</span>
+      <strong>서비스와 게임 리서치</strong>
+      <p>High☆Cheers 변경점과 서비스 정책에 영향을 주는 게임 규칙을 봅니다.</p>
+    </a>
+    <a class="path-step" href="mvp-db-design/">
+      <span>03</span>
+      <strong>MVP DB 설계</strong>
+      <p>song/chart, playdata/history, version best/all-time best 구조를 확인합니다.</p>
+    </a>
+    <a class="path-step" href="api-design/">
+      <span>04</span>
+      <strong>API 설계</strong>
+      <p>프론트 가공을 줄이고 백엔드가 책임질 응답 구조를 확인합니다.</p>
+    </a>
+  </div>
+</section>
 
-- 이 프로젝트는 새로 시작하는 기준으로 설계합니다. `popngg-old`는 참고 자료일 뿐이며, 문서와 새 구현이 기준입니다.
-- 기준 게임 버전은 `pop'n music High☆Cheers!!`입니다.
-- `song`과 `chart`를 분리합니다.
-- 랭크는 점수로 계산하지 않고 크롤링 원천 데이터에서 받은 값을 저장합니다.
-- 이메일 기반 비밀번호 복구를 MVP에 포함합니다.
-- DB foreign key constraint는 만들지 않고 애플리케이션 검증과 인덱스로 운영합니다.
-- 긴 갱신, 집계, 외부 I/O는 요청 경로와 분리하고 job/worker로 처리합니다.
-- DB schema migration은 Flyway로 관리합니다.
-- 배포는 Jenkins가 오케스트레이션하고, 산출물은 Docker image로 배포합니다.
+<section class="doc-section">
+  <div class="section-heading">
+    <span class="eyebrow">Decision Snapshot</span>
+    <h2>현재 확정에 가까운 방향</h2>
+  </div>
 
-## 공개 문서 운영 원칙
+  <div class="status-grid">
+    <div class="status-card">
+      <span class="status-card__tag">Architecture</span>
+      <strong>헥사고널 / 레이어드 구조</strong>
+      <p>API, application, domain, infra를 분리하고 구현 전에 의존 방향을 고정합니다.</p>
+    </div>
+    <div class="status-card">
+      <span class="status-card__tag">Data</span>
+      <strong>song과 chart 분리</strong>
+      <p>곡 메타데이터와 난이도별 채보 정보를 분리해 Upper, 버전, 자켓 변경에 대응합니다.</p>
+    </div>
+    <div class="status-card">
+      <span class="status-card__tag">Playdata</span>
+      <strong>version best + all-time best</strong>
+      <p>점수 초기화와 기록 유지 가능성을 모두 다루기 위해 현재 버전 기록과 역대 기록을 함께 저장합니다.</p>
+    </div>
+    <div class="status-card">
+      <span class="status-card__tag">Operations</span>
+      <strong>Jenkins, Docker, Flyway, 관측 스택</strong>
+      <p>배포와 운영은 레거시 기준이 아니라 Docker 기반 배포와 Prometheus/Grafana/Loki/Alloy 기준으로 정리합니다.</p>
+    </div>
+  </div>
+</section>
 
-- 개인 이름, 가용성, 내부 일정 같은 비공개 운영 정보는 문서에 넣지 않습니다.
-- 확정된 내용과 검토 중인 내용을 분리합니다.
-- API와 DB 변경은 마이그레이션/호환성 전략과 같이 기록합니다.
-- 결정 사항은 ADR 형태로 남깁니다.
+<section class="doc-section">
+  <div class="section-heading">
+    <span class="eyebrow">Document Map</span>
+    <h2>문서 지도</h2>
+  </div>
 
-## 로컬 문서 실행
+  <div class="doc-grid doc-grid--wide">
+    <a class="doc-card" href="planning/">
+      <span class="doc-card__eyebrow">Planning</span>
+      <strong>기획</strong>
+      <p>프로젝트 목표, MVP 범위, High☆Cheers 대응 정책을 정리합니다.</p>
+    </a>
+    <a class="doc-card" href="meetings/">
+      <span class="doc-card__eyebrow">Discussion</span>
+      <strong>회의해야 할 것</strong>
+      <p>아직 결정하지 않은 쟁점과 회의에서 확정할 질문을 모읍니다.</p>
+    </a>
+    <a class="doc-card" href="design/">
+      <span class="doc-card__eyebrow">Design</span>
+      <strong>설계</strong>
+      <p>아키텍처, DB 모델링, 마이그레이션 전략, 의사결정 기록을 모읍니다.</p>
+    </a>
+    <a class="doc-card" href="api/">
+      <span class="doc-card__eyebrow">API</span>
+      <strong>API</strong>
+      <p>API 설계 원칙, 엔드포인트 초안, OpenAPI Reference를 제공합니다.</p>
+    </a>
+    <a class="doc-card" href="conventions/">
+      <span class="doc-card__eyebrow">Convention</span>
+      <strong>컨벤션</strong>
+      <p>문서, 코드, DB, 테스트, Git 규칙을 구현 전에 맞춥니다.</p>
+    </a>
+    <a class="doc-card" href="operations/">
+      <span class="doc-card__eyebrow">Operations</span>
+      <strong>운영</strong>
+      <p>Jenkins, Docker, Flyway, 모니터링, 로그 수집 흐름을 정리합니다.</p>
+    </a>
+  </div>
+</section>
 
-```bash
-pip install -r requirements.txt
-mkdocs serve
-```
-
-브라우저에서 `http://127.0.0.1:8000`을 열면 됩니다.
+<section class="doc-section doc-section--compact">
+  <div class="doc-callout">
+    <strong>문서 운영 원칙</strong>
+    <p>
+      확정된 결정은 설계 문서와 ADR에 남기고, 아직 논의 중인 내용은 회의 문서에 둡니다.
+      레거시 코드는 구현 기준이 아니라 문제를 이해하기 위한 참고 자료로만 사용합니다.
+    </p>
+  </div>
+</section>

@@ -1,14 +1,17 @@
 <section class="doc-hero">
-  <span class="doc-hero__eyebrow">API</span>
+  <span class="eyebrow">API</span>
   <h1>API</h1>
-  <p>프론트에서 데이터 가공을 줄이기 위한 API 설계 원칙과 OpenAPI 기반 Reference를 제공합니다.</p>
+  <p>
+    프론트에서 모든 데이터를 받아 직접 가공하던 흐름을 줄이고, 백엔드가 검색·필터링·페이지네이션·집계를
+    책임지기 위한 API 설계 문서입니다.
+  </p>
 </section>
 
 <div class="doc-grid">
   <a class="doc-card" href="../api-design/">
     <span class="doc-card__eyebrow">Design</span>
     <strong>API 설계</strong>
-    <p>엔드포인트 목록, 응답 정책, 추가로 필요할 API 후보를 정리합니다.</p>
+    <p>도메인별 endpoint, 응답 정책, 관리자 API 후보, playdata 응답 구조를 정리합니다.</p>
   </a>
   <a class="doc-card" href="../api-reference/">
     <span class="doc-card__eyebrow">Reference</span>
@@ -17,16 +20,10 @@
   </a>
 </div>
 
-## 문서화 방식
+## API 설계 기준
 
-- API 계약은 `docs/openapi/openapi.yaml`로 관리합니다.
-- MkDocs에서는 Redoc으로 API Reference를 렌더링합니다.
-- 백엔드 구현이 안정되면 SpringDoc `/v3/api-docs`에서 OpenAPI 문서를 갱신하는 흐름을 권장합니다.
-- API 이름과 구조는 현재 제품 기준으로 정하고, 레거시 엔드포인트와 1:1로 맞추지 않습니다.
-
-## 원칙
-
-- 프론트가 데이터 가공을 최소화하도록 응답을 구성합니다.
-- 내부 id와 외부 식별자를 분리합니다.
-- `rank`, `medal`, `difficulty`는 code와 label을 함께 제공합니다.
-- 랭크는 score에서 계산하지 않고 원천 데이터의 값을 저장합니다.
+- API는 레거시 endpoint 복제가 아니라 새 서비스 경험을 기준으로 설계합니다.
+- 응답은 프론트가 바로 그릴 수 있는 구조를 우선합니다.
+- playdata 응답은 `versionBest`, `allTimeBest`, `medal`을 함께 제공합니다.
+- 곡 검색은 백엔드 검색 API로 제공하며, 검색 태그와 캐시 전략은 별도 회의 문서에서 확정합니다.
+- 운영성 API는 관리자 영역(`/admin`)에 두고, 실제 구현 우선순위는 MVP 범위에 맞춰 조정합니다.

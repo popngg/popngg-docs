@@ -1,6 +1,23 @@
 # MVP DB 설계 초안
 
-이 문서는 빠른 MVP 출시를 목표로 한 신규 DB 설계 초안입니다. 원칙은 단순합니다.
+이 문서는 빠른 MVP 출시를 목표로 한 신규 DB 설계 초안입니다. 테이블 정의를 나열하는 문서가 아니라, **왜 이 구조가 필요한지**와 **구현 전에 지켜야 할 데이터 정책**을 함께 정리합니다.
+
+<div class="doc-summary">
+  <div class="doc-summary__item">
+    <strong>먼저 볼 것</strong>
+    <p>테이블 요약, ERD, playdata, game_version_transitions, 기존 DB 매핑을 먼저 읽으면 전체 구조가 잡힙니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>핵심 결정</strong>
+    <p>users/profile 분리, song/chart 분리, playdata current state화, history append-only, songHash 비종속화입니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>아직 열려 있음</strong>
+    <p>songHash seed, Upper 모델링 세부, LONG POP ON/OFF 팝클 반영, history 복원 범위는 회의 후 확정합니다.</p>
+  </div>
+</div>
+
+## 설계 원칙
 
 - 사용자에게 익숙한 공개 화면 흐름은 유지하되, 내부 구조는 새 기준으로 설계합니다.
 - `song`과 `chart`는 분리합니다.

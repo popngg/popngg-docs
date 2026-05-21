@@ -1,5 +1,22 @@
 # MVP 범위
 
+MVP는 “서비스를 다시 열 수 있는 최소 기능”과 “새 구조를 검증할 수 있는 기반”을 함께 포함합니다. 반대로, 운영 편의나 고급 검색처럼 출시 후 확장해도 되는 기능은 명시적으로 뒤로 미룹니다.
+
+<div class="doc-summary">
+  <div class="doc-summary__item">
+    <strong>포함 기준</strong>
+    <p>로그인, 갱신, 곡/채보 조회, 플레이데이터, 팝클, 랭킹, 배포/마이그레이션 기반입니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>보류 기준</strong>
+    <p>사용자 기여형 검색 태그, 관리자 검수 UI, 게임 코드 DB 관리 UI는 MVP 이후로 둡니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>출시 전략</strong>
+    <p>스키마와 운영 기준을 먼저 고정하고, 레거시는 마이그레이션 입력으로만 사용합니다.</p>
+  </div>
+</div>
+
 ## 포함
 
 - 유저 등록/갱신/로그인

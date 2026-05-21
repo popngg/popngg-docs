@@ -1,5 +1,22 @@
 # API 설계
 
+이 문서는 신규 popn.gg 백엔드 API의 기준을 정리합니다. 레거시 endpoint를 그대로 복제하는 것이 아니라, 프론트가 빠르게 화면을 그릴 수 있도록 백엔드가 검색, 필터링, 페이지네이션, 집계, 표시용 응답을 책임지는 방향입니다.
+
+<div class="doc-summary">
+  <div class="doc-summary__item">
+    <strong>API 설계 기준</strong>
+    <p>도메인별 endpoint, 표시 가능한 response, 내부 id와 외부 식별자 분리, 관리자 API 분리를 우선합니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>중요한 변경</strong>
+    <p>playdata는 `versionBest`, `allTimeBest`, `medal`을 함께 내려주고, 곡별 랭킹도 현재 버전/역대 랭킹을 분리합니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>주의할 점</strong>
+    <p>이 문서는 구현 전 계약 초안입니다. 구현이 안정되면 SpringDoc과 OpenAPI YAML을 동기화해야 합니다.</p>
+  </div>
+</div>
+
 ## 원칙
 
 - 모든 경로는 `/api/v1` prefix 아래에 둡니다.
@@ -619,7 +636,7 @@ API 응답은 프론트가 구분할 수 있도록 각 플레이데이터에 다
 | `PATCH /users/{poptomoId}` | 본인 또는 관리자 |
 | `PATCH /users/me/password` | 로그인 필요 |
 | `PATCH /users/me/email` | 로그인 필요 |
-| `POST /chart` | 관리자 |
+| `POST /songs` | 관리자 |
 | `PATCH /admin/songs/{songId}` | 관리자 |
 | `POST /songs/{songId}/jacket` | 관리자 |
 | `POST /users/me/image` | 로그인 필요 |

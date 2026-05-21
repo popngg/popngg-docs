@@ -1,5 +1,22 @@
 # 운영과 배포
 
+이 문서는 로컬 실행 방법보다 운영 기준을 먼저 설명합니다. 이번 리팩토링의 배포/운영은 레거시 서버 기준이 아니라, Jenkins와 Docker, Flyway, Prometheus/Grafana/Loki/Alloy를 전제로 정리합니다.
+
+<div class="doc-summary">
+  <div class="doc-summary__item">
+    <strong>서버 구성</strong>
+    <p>서버 1은 Jenkins와 관측 스택, 서버 2는 애플리케이션과 MySQL/Redis를 둡니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>배포 기준</strong>
+    <p>test, build, image, migration, deploy, health check, smoke test를 pipeline stage로 분리합니다.</p>
+  </div>
+  <div class="doc-summary__item">
+    <strong>운영 리스크</strong>
+    <p>request thread와 긴 작업 executor를 분리하고, queue depth와 rejected count를 모니터링합니다.</p>
+  </div>
+</div>
+
 ## 현재 개발 실행
 
 ```bash
