@@ -18,7 +18,7 @@
 </div>
 
 <figure class="doc-image-figure">
-  <img src="/assets/images/db-structure.png" alt="popn.gg MVP DB 구조 다이어그램" class="doc-image" />
+  <img src="../assets/images/db-structure.png" alt="popn.gg MVP DB 구조 다이어그램" class="doc-image" />
   <figcaption>핵심 테이블과 참조 흐름을 한눈에 보기 위한 MVP DB 구조 다이어그램입니다.</figcaption>
 </figure>
 
