@@ -7,6 +7,8 @@ const chromePath = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const simpleIcon = (slug, color = "111111") => `https://cdn.simpleicons.org/${slug}/${color}`;
 const devIcon = (name) => `https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/${name}/${name}-original.svg`;
 const awsS3Icon = "https://icon.icepanel.io/AWS/svg/Storage/Simple-Storage-Service.svg";
+const lokiIcon = "https://cdn.jsdelivr.net/gh/homarr-labs/dashboard-icons/svg/loki.svg";
+const alloyIcon = "https://grafana.com/media/oss/alloy/alloy-logo.svg";
 
 const svgData = (svg) => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 const querydslIcon = svgData(`
@@ -204,30 +206,40 @@ const html = `<!doctype html>
   .duo img { width: 34px; height: 34px; object-fit: contain; }
   .row b { display: block; color: #071512; font-size: 19px; font-weight: 900; }
   .row span { display: block; color: #61716b; font-size: 14px; font-weight: 700; margin-top: 3px; }
-  .stack {
+  .highlights {
     position: absolute;
     left: 72px;
     right: 72px;
     bottom: 58px;
     display: grid;
-    grid-template-columns: repeat(11, 1fr);
-    gap: 13px;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 28px;
   }
-  .tech {
-    min-height: 105px;
-    display: flex;
-    flex-direction: column;
+  .highlight {
+    min-height: 112px;
+    display: grid;
+    grid-template-columns: 76px 1fr;
     align-items: center;
-    justify-content: center;
-    gap: 7px;
-    border-radius: 23px;
-    border: 2px solid #dbe5e1;
+    gap: 18px;
+    padding: 18px 22px;
+    border-radius: 18px;
+    border: 3px solid var(--accent);
     background: rgba(255,255,255,.94);
     box-shadow: 0 16px 40px rgba(9,39,31,.08);
   }
-  .tech img { width: 38px; height: 38px; object-fit: contain; }
-  .tech b { font-size: 16px; color: #071512; text-align: center; }
-  .tech span { font-size: 12px; color: #64736d; font-weight: 800; text-align: center; }
+  .highlight-icon {
+    width: 62px;
+    height: 62px;
+    display: grid;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    background: var(--accent);
+  }
+  .highlight-icon img { width: 42px; height: 42px; object-fit: contain; }
+  .highlight-icon .symbol { color: white; font-size: 38px; font-weight: 950; line-height: 1; }
+  .highlight b { display: block; color: var(--accent); font-size: 24px; font-weight: 950; letter-spacing: -.5px; }
+  .highlight span { display: block; color: #33423d; font-size: 16px; font-weight: 760; line-height: 1.38; margin-top: 6px; }
   svg.lines { position: absolute; inset: 0; width: 2400px; height: 1500px; pointer-events: none; }
   .line { fill: none; stroke: #0f766e; stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; opacity: .72; marker-end: url(#arrow); }
   .line-blue { stroke: #1266d5; }
@@ -283,7 +295,7 @@ const html = `<!doctype html>
   </section>
 
   <section class="card backend-card">
-    <div class="head h-teal"><img src="${devIcon("spring")}" alt="Spring Boot" /><h2>Spring Boot Backend</h2></div>
+    <div class="head h-teal"><img src="${simpleIcon("springboot", "ffffff")}" alt="Spring Boot" /><h2>Spring Boot Backend</h2></div>
     <div class="body">
       <div class="modules">
         ${moduleBox("API", ["REST Controller", "Request / Response DTO", "Validation", "Exception Handler"], "api")}
@@ -303,7 +315,7 @@ const html = `<!doctype html>
     <div class="head h-amber"><img src="${devIcon("docker")}" alt="Docker" /><h2>Server 2</h2></div>
     <div class="body">
       <div class="list">
-        <div class="row"><img src="${devIcon("spring")}" alt="Spring Boot" /><div><b>Spring Boot App</b><span>Docker container runtime</span></div></div>
+        <div class="row"><img src="${simpleIcon("springboot", "6db33f")}" alt="Spring Boot" /><div><b>Spring Boot App</b><span>Docker container runtime</span></div></div>
         <div class="row"><img src="${devIcon("mysql")}" alt="MySQL" /><div><b>MySQL</b><span>Primary source of truth</span></div></div>
         <div class="row"><img src="${devIcon("redis")}" alt="Redis" /><div><b>Redis</b><span>Cache / search read model</span></div></div>
       </div>
@@ -336,23 +348,28 @@ const html = `<!doctype html>
     <div class="body">
       <div class="list">
         <div class="row"><div class="duo"><img src="${simpleIcon("prometheus", "e6522c")}" alt="Prometheus" /><img src="${simpleIcon("grafana", "f46800")}" alt="Grafana" /></div><div><b>Prometheus + Grafana</b><span>Metrics and dashboards</span></div></div>
-        <div class="row"><div class="duo"><img src="${simpleIcon("grafana", "f46800")}" alt="Grafana Loki" /><img src="${simpleIcon("opentelemetry", "000000")}" alt="OpenTelemetry" /></div><div><b>Loki + Alloy</b><span>JSON logs and request tracing</span></div></div>
+        <div class="row"><div class="duo"><img src="${lokiIcon}" alt="Loki" /><img src="${alloyIcon}" alt="Grafana Alloy" /></div><div><b>Loki + Alloy</b><span>JSON logs and request tracing</span></div></div>
       </div>
     </div>
   </section>
 
-  <div class="stack">
-    ${tech({ src: devIcon("java"), name: "Java 25", sub: "fallback 21" })}
-    ${tech({ src: devIcon("spring"), name: "Spring Boot", sub: "backend" })}
-    ${tech({ src: devIcon("gradle"), name: "Gradle", sub: "build" })}
-    ${tech({ src: querydslIcon, name: "Querydsl", sub: "read query" })}
-    ${tech({ src: devIcon("mysql"), name: "MySQL", sub: "primary DB" })}
-    ${tech({ src: devIcon("redis"), name: "Redis", sub: "cache/search" })}
-    ${tech({ src: awsS3Icon, name: "AWS S3", sub: "assets" })}
-    ${tech({ slug: "flyway", name: "Flyway", sub: "schema", color: "cc0200" })}
-    ${tech({ src: devIcon("docker"), name: "Docker", sub: "deploy" })}
-    ${tech({ src: devIcon("jenkins"), name: "Jenkins", sub: "CI/CD" })}
-    ${tech({ slug: "grafana", name: "Observability", sub: "Prom/Loki", color: "f46800" })}
+  <div class="highlights">
+    <div class="highlight" style="--accent:#1266d5">
+      <div class="highlight-icon"><span class="symbol">★</span></div>
+      <div><b>1. Version Best + All-Time Best</b><span>Expose both season/version score and historical best record.</span></div>
+    </div>
+    <div class="highlight" style="--accent:#2f8f2f">
+      <div class="highlight-icon"><span class="symbol">♪</span></div>
+      <div><b>2. Song / Chart Separation</b><span>Keep song identity separate from chart, difficulty, and score state.</span></div>
+    </div>
+    <div class="highlight" style="--accent:#dc2626">
+      <div class="highlight-icon"><img src="${devIcon("redis")}" alt="Redis" /></div>
+      <div><b>3. Redis Read Model</b><span>Use cache/read model where it improves search and hot read paths.</span></div>
+    </div>
+    <div class="highlight" style="--accent:#0f766e">
+      <div class="highlight-icon"><img src="${alloyIcon}" alt="Grafana Alloy" /></div>
+      <div><b>4. Structured Logs + Metrics</b><span>Collect JSON logs and metrics through Alloy, Loki, and Prometheus.</span></div>
+    </div>
   </div>
 </div>
 </body>
