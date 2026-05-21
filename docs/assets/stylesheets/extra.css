@@ -436,6 +436,25 @@
   margin-bottom: 0;
 }
 
+.doc-image-figure {
+  margin: 1.4rem 0 2rem;
+}
+
+.doc-image {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--popngg-border);
+  border-radius: 18px;
+  box-shadow: var(--popngg-shadow);
+}
+
+.doc-image-figure figcaption {
+  margin-top: 0.55rem;
+  color: var(--popngg-muted);
+  font-size: 0.68rem;
+  text-align: center;
+}
+
 .doc-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));

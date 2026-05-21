@@ -17,6 +17,11 @@
   </div>
 </div>
 
+<figure class="doc-image-figure">
+  <img src="/assets/images/db-structure.png" alt="popn.gg MVP DB 구조 다이어그램" class="doc-image" />
+  <figcaption>핵심 테이블과 참조 흐름을 한눈에 보기 위한 MVP DB 구조 다이어그램입니다.</figcaption>
+</figure>
+
 ## 설계 원칙
 
 - 사용자에게 익숙한 공개 화면 흐름은 유지하되, 내부 구조는 새 기준으로 설계합니다.
