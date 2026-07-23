@@ -473,7 +473,7 @@ Request DTO
 ## Logging 규칙
 
 - logger는 class별로 선언합니다.
-- password, reset token 원문, JWT secret, authorization header는 로그에 남기지 않습니다.
+- password, reset token 원문, JWT 원문, JWT secret, 인증 cookie/header는 로그에 남기지 않습니다.
 - 외부 API 응답 원문은 기본적으로 저장하지 않습니다.
 - job id, trace id, user id, poptomo id처럼 추적 가능한 최소 정보만 남깁니다.
 - 반복 루프 안에서 과도한 info log를 찍지 않습니다.

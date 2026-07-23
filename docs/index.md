@@ -74,7 +74,7 @@
     </div>
     <div class="status-card">
       <span class="status-card__tag">Operations</span>
-      <strong>Jenkins, Docker, Flyway, 관측 스택</strong>
+      <strong>Docker, Flyway, 관측 스택</strong>
       <p>배포와 운영은 레거시 기준이 아니라 Docker 기반 배포와 Prometheus/Grafana/Loki/Alloy 기준으로 정리합니다.</p>
     </div>
   </div>
@@ -115,7 +115,7 @@
     <a class="doc-card" href="operations/">
       <span class="doc-card__eyebrow">Operations</span>
       <strong>운영</strong>
-      <p>Jenkins, Docker, Flyway, 모니터링, 로그 수집 흐름을 정리합니다.</p>
+      <p>Docker, Flyway, 모니터링, 로그 수집 흐름을 정리합니다.</p>
     </a>
   </div>
 </section>

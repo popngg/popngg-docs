@@ -26,7 +26,7 @@ popn.gg는 아케이드 리듬게임 `pop'n music`의 곡, 채보, 플레이데�
 - Spring Security + JWT
 - SpringDoc OpenAPI
 - JPA, Querydsl
-- Jenkins + Docker 배포
+- Docker 기반 배포
 - 로깅/모니터링은 `Prometheus + Grafana + Loki + Grafana Alloy`를 사용합니다.
 - Flyway DB migration. 현재 코드에 의존성이 없다면 스키마 작업 시 추가해야 함
 
@@ -90,8 +90,8 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 비밀번호 복구: 이메일 기반 복구 기능 포함
 - FK 제거: DB 차원의 cascading 비용이 리턴보다 큼
 - 마이그레이션: DB 구조 변화가 크므로 schema baseline/data transform/cutover 같은 큰 세션 단위로 관리. Flyway는 schema baseline, 대량 데이터 이전은 별도 job/script
-- 배포: Jenkins pipeline에서 Docker image를 빌드/배포하고, 운영 마이그레이션은 별도 단계로 분리
-- 운영 서버 구성: 서버 1은 Jenkins와 관측 스택(Prometheus, Grafana, Loki, Alertmanager, Alloy), 서버 2는 Spring Boot 애플리케이션, MySQL, Redis, Alloy, node exporter를 둡니다.
+- 배포: 배포 파이프라인에서 Docker image를 빌드/배포하고, 운영 마이그레이션은 별도 단계로 분리
+- 운영 서버 구성: 서버 1은 관측 스택(Prometheus, Grafana, Loki, Alertmanager, Alloy), 서버 2는 Spring Boot 애플리케이션, MySQL, Redis, Alloy, node exporter를 둡니다.
 - 로그는 애플리케이션 stdout JSON log를 Alloy가 수집해 Loki로 전송하고, 메트릭은 Spring Boot Actuator/Micrometer의 `/actuator/prometheus`를 Prometheus가 수집합니다.
 - 검색: 곡 라이브서치는 백엔드 API로 옮기되 Redis read model, local memory index, MySQL 검색 중 회의 후 확정
 - 긴 작업: 플레이데이터 갱신, BOT 데이터 재계산, 테이블 생성, 이미지 fetch/S3 업로드는 request thread와 분리하고 job/worker/executor 기준으로 처리
@@ -132,6 +132,7 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 크롤러/API 입력은 `popclass_bucket`을 보내지 않습니다. bucket은 서버 계산값입니다.
 - 비밀번호 복구 token 원문은 DB에 저장하지 않고 hash만 `password_reset_tokens`에 저장합니다.
 - password, reset token 원문, JWT secret, 외부 민감 header는 로그와 DB에 저장하지 않습니다.
+- 로그인 성공 시 JWT access token은 JSON body가 아니라 `HttpOnly Secure Cookie`로 발급합니다. 프론트는 credential 포함 요청을 사용하고, 상태 변경 API는 CSRF 방어를 둡니다.
 - request thread에서 대량 갱신, 대량 집계, S3/외부 HTTP 작업을 길게 수행하지 않습니다.
 - 긴 갱신은 job 상태를 남기고 chunk 단위 transaction으로 처리합니다.
 - 운영에 적용된 Flyway `V*.sql`은 수정하지 말고 새 파일을 추가합니다.

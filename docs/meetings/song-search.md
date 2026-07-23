@@ -185,7 +185,7 @@ MVP에서는 Redis 장애 시 DB fallback을 둘지 신중히 결정해야 합�
 3. 검색 결과에 `jacketThumbUrl`, `levels`, `matchType`을 포함할 것인가?
 4. 빈 query와 한 글자 query는 어떤 결과를 반환할 것인가?
 5. 한국어 별칭/태그는 MVP에 포함할 것인가, 추후 기능으로 둘 것인가?
-6. 검색 index rebuild는 수동 admin API, Jenkins job, scheduler 중 무엇으로 실행할 것인가?
+6. 검색 index rebuild는 수동 admin API, 운영 job, scheduler 중 무엇으로 실행할 것인가?
 7. Redis 장애 시 DB fallback을 허용할 것인가, 검색 일시 불가로 제한할 것인가?
 8. 검색 품질 평가용 테스트 query set을 어떤 기준으로 만들 것인가?
 

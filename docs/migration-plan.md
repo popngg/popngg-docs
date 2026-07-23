@@ -29,7 +29,7 @@
 | Session 3. Data Transform | 실제 데이터 변환 및 적재 | migration job/script | users, songs, charts, playdata, history 적재 결과 |
 | Session 3-1. Jacket Asset Migration | 기존 S3 자켓을 신규 songHash key로 재저장 | migration job/script | old/new jacket key mapping, 실패 object |
 | Session 4. Verification | row count, unique, 정합성 검증 | SQL/script | 검증 리포트, diff 리포트 |
-| Session 5. Cutover | 애플리케이션 라우팅 전환과 최종 싱크 | Jenkins/manual approval | 전환 로그, smoke test 결과 |
+| Session 5. Cutover | 애플리케이션 라우팅 전환과 최종 싱크 | deployment/manual approval | 전환 로그, smoke test 결과 |
 | Session 6. Stabilization | 전환 후 보정과 관찰 | 운영 job/query | 오류 row 보정, 모니터링 결과 |
 
 세션을 크게 두는 이유:
@@ -88,7 +88,7 @@ db/migration/
 - 테이블 단위보다 큰 baseline 세션 단위로 파일을 구성합니다.
 - 기존 테이블은 즉시 삭제하지 않습니다.
 - 운영 배포 전 로컬/스테이징에서 `flyway_schema_history`를 확인합니다.
-- 운영 배포에서는 Jenkins 단계에서 상태를 먼저 확인하고, 필요하면 migration container를 별도로 실행합니다.
+- 운영 배포에서는 배포 단계에서 상태를 먼저 확인하고, 필요하면 migration container를 별도로 실행합니다.
 
 ### 3. 데이터 이전 준비
 
@@ -180,7 +180,7 @@ db/migration/
 ### 6. 최종 전환
 
 1. 운영 DB를 백업합니다.
-2. Jenkins 배포 job의 동시 실행을 막습니다.
+2. 배포 job의 동시 실행을 막습니다.
 3. 서버를 닫습니다.
 4. Flyway 스키마 migration을 실행하거나 이미 적용된 상태를 확인합니다.
 5. 최종 데이터 싱크 job을 수행합니다.
@@ -190,7 +190,7 @@ db/migration/
 9. 서버를 다시 엽니다.
 10. 주요 API smoke test를 실행합니다.
 
-## Jenkins 배포에서의 Flyway 위치
+## 배포에서의 Flyway 위치
 
 권장 파이프라인:
 
@@ -211,7 +211,7 @@ checkout
 → smoke test
 ```
 
-운영에서 더 보수적으로 가려면 Flyway를 애플리케이션 시작 자동 실행이 아니라 Jenkins의 명시 단계로 분리합니다.
+운영에서 더 보수적으로 가려면 Flyway를 애플리케이션 시작 자동 실행이 아니라 배포 파이프라인의 명시 단계로 분리합니다.
 
 ```text
 deploy migration container
@@ -219,7 +219,7 @@ deploy migration container
 → deploy app container
 ```
 
-로컬 개발에서는 Spring Boot Flyway 자동 실행을 허용할 수 있습니다. staging/production, 특히 이번 리팩토링처럼 DB 구조가 크게 바뀌는 전환에서는 Jenkins의 명시 단계 또는 migration container를 우선합니다. 애플리케이션 컨테이너 시작과 schema baseline 적용이 섞이면 실패 시 원인 분리가 어려워집니다.
+로컬 개발에서는 Spring Boot Flyway 자동 실행을 허용할 수 있습니다. staging/production, 특히 이번 리팩토링처럼 DB 구조가 크게 바뀌는 전환에서는 배포 파이프라인의 명시 단계 또는 migration container를 우선합니다. 애플리케이션 컨테이너 시작과 schema baseline 적용이 섞이면 실패 시 원인 분리가 어려워집니다.
 
 위험한 스키마 변경은 한 번에 처리하지 않습니다.
 
@@ -260,6 +260,6 @@ deploy migration container
 - 검증 SQL
 - old/new id 매핑 결과
 - 실패 row 리포트
-- Jenkins 배포 로그
+- 배포 로그
 - DB 백업 위치
 - 전환 체크리스트

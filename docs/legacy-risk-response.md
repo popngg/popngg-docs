@@ -12,7 +12,7 @@
 | 실행 경계 | 스케줄, 갱신, 외부 호출이 한 애플리케이션 자원에 몰림 | request, worker, scheduler, external I/O 경계 분리 |
 | DB | 대량 조회 후 애플리케이션에서 정렬/집계 | 조회 패턴별 index, summary, batch upsert |
 | 보안/로그 | password 같은 민감정보가 로그/테이블에 남을 수 있음 | 민감정보 저장 금지, hash/token 원문 분리, 사유 code화 |
-| 운영/배포 | jar 교체, 앱 내부 SSH tunnel, 불명확한 migration 흐름 | Jenkins, Docker, Flyway, health check, smoke test 분리 |
+| 운영/배포 | jar 교체, 앱 내부 SSH tunnel, 불명확한 migration 흐름 | Docker, Flyway, health check, smoke test 분리 |
 
 ## 1. 요청 경로에서 긴 작업 분리
 
@@ -144,8 +144,10 @@ MVP에서는 정규화 테이블과 index로 시작하되, query service 경계�
 토큰 정책:
 
 - password reset token 원문은 DB에 저장하지 않고 hash만 저장합니다.
+- 로그인 JWT는 JSON body로 내려주지 않고 `HttpOnly Secure Cookie`로 발급합니다.
+- 쿠키 인증을 사용하므로 상태 변경 API에는 `SameSite`, `Origin`/`Referer` 검증, CSRF token 중 배포 형태에 맞는 방어를 적용합니다.
 - JWT secret은 환경 변수나 secret manager로 주입합니다.
-- secret은 Jenkins log에 출력되지 않도록 masking을 확인합니다.
+- secret은 배포 로그에 출력되지 않도록 masking을 확인합니다.
 - 외부 API 응답 원문을 저장해야 하면 보관 기간과 redaction 규칙을 먼저 정합니다.
 
 오류 응답 정책:
@@ -162,7 +164,7 @@ MVP에서는 정규화 테이블과 index로 시작하되, query service 경계�
 
 ```text
 Git push
--> Jenkins
+-> deployment pipeline
 -> test
 -> bootJar
 -> Docker image build
@@ -178,7 +180,7 @@ Git push
 
 - Docker image는 commit SHA 또는 release tag 같은 immutable tag로 배포합니다.
 - `latest`만으로 운영 배포하지 않습니다.
-- Flyway schema migration은 Jenkins 단계 또는 migration container로 명시 실행합니다.
+- Flyway schema migration은 배포 단계 또는 migration container로 명시 실행합니다.
 - 대량 데이터 이전은 Flyway가 아니라 별도 migration job으로 실행합니다.
 - 위험한 schema 변경은 `expand -> deploy -> contract` 순서로 나누고, contract 단계는 별도 승인 후 실행합니다.
 - DB 접속 경로와 SSH tunnel은 애플리케이션 코드가 아니라 인프라 레이어에서 다룹니다.
@@ -211,8 +213,8 @@ Git push
 | DB index | 주요 API query plan을 설명할 수 있는 index 정의 |
 | summary 확장성 | query service가 summary table로 전환 가능하게 분리 |
 | 보안 로그 | password/token 원문 저장 지점이 없음 |
-| secret 주입 | secret이 Git과 Jenkins log에 노출되지 않음 |
-| 배포 파이프라인 | Jenkins에서 test/build/image/migration/health/smoke가 분리됨 |
+| secret 주입 | secret이 Git과 배포 로그에 노출되지 않음 |
+| 배포 파이프라인 | test/build/image/migration/health/smoke가 분리됨 |
 | 모니터링 | executor, DB pool, JVM, job 상태를 볼 수 있음 |
 
 ## 구현 우선순위
@@ -221,6 +223,6 @@ Git push
 2. executor와 worker 경계를 먼저 잡고, 무거운 작업을 request thread에서 제거합니다.
 3. `playdata`, `users`, `charts`의 주요 조회 index를 확정합니다.
 4. login/renew log에서 민감정보 저장 가능성을 제거합니다.
-5. Jenkins + Docker + Flyway 배포 흐름을 최소 형태로 먼저 완성합니다.
+5. Docker + Flyway 배포 흐름을 최소 형태로 먼저 완성합니다.
 
 이 순서를 지키면 새 프로젝트는 기능을 늘리더라도 특정 작업 하나가 서버 전체를 끌고 내려가는 위험을 훨씬 줄일 수 있습니다.

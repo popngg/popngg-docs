@@ -184,7 +184,7 @@ MVP DDL에 모두 넣지는 않습니다. 다만 `bpm`, `character`, `release_da
 | `GET /charts/{chartId}/rankings` | 차트 상세 외에도 곡별 랭킹만 독립 조회할 수 있게 함. version best/all-time best 동시 제공 |
 | `GET /users/{poptomoId}/playdata/summary` | 프로필/대시보드에서 version best/all-time best 요약을 한 번에 내려줌 |
 | `PATCH /user/email` | 이메일 기반 비밀번호 복구 준비 |
-| `GET /admin/migrations/status` | 운영 편의. Jenkins/DB 확인으로 충분하면 제외 가능 |
+| `GET /admin/migrations/status` | 운영 편의. 배포 로그/DB 확인으로 충분하면 제외 가능 |
 | `GET /search/charts` | 검색이 복잡해질 때 `/chart/all`에서 분리 |
 | `GET /image/jacket/{songId}` | 이미지 프록시가 필요해질 때 후보. 자켓은 songId 기준으로 연결 |
 | `PATCH /admin/songs/{songId}` | 장르명, 제목, 작곡가, 버전, 자켓 등 곡 메타데이터 보정 |

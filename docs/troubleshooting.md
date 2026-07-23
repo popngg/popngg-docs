@@ -31,7 +31,7 @@
 | 6 | songHash가 곡명/장르명 변경에 취약 | 내부 참조는 `song_id`/`chart_id`, hash는 외부 alias |
 | 7 | S3 자켓 key가 songHash에 종속 | 신규 hash key로 copy/upload, 기존 object 보존 |
 | 8 | 점수와 메달 생명주기가 다름 | version best, all-time best, medal 분리 |
-| 9 | 운영/배포가 수동 절차 중심 | Jenkins, Docker, Flyway, 관측 스택 도입 |
+| 9 | 운영/배포가 수동 절차 중심 | Docker, Flyway, 관측 스택 도입 |
 | 10 | 검색을 클라이언트 전체 데이터 검색에 의존 | 백엔드 검색 API와 Redis/read model 후보 |
 
 ## 기록 방식
@@ -550,14 +550,14 @@ new key:    jackets/{newSongHash}.png
 
 | 서버 | 역할 |
 | --- | --- |
-| 서버 1 | Jenkins, Prometheus, Grafana, Loki, Alertmanager, Grafana Alloy |
+| 서버 1 | Prometheus, Grafana, Loki, Alertmanager, Grafana Alloy |
 | 서버 2 | Spring Boot, MySQL, Redis, Grafana Alloy, node exporter |
 
 배포 흐름:
 
 ```text
 Git push
--> Jenkins
+-> deployment pipeline
 -> test
 -> build
 -> Docker image build
@@ -577,7 +577,7 @@ Git push
 
 ### 확인 기준
 
-- Jenkins 배포 단계가 test/build/image/migration/deploy/health/smoke로 분리됩니다.
+- 배포 단계가 test/build/image/migration/deploy/health/smoke로 분리됩니다.
 - 배포 실패 시 어느 단계에서 실패했는지 바로 확인할 수 있습니다.
 - 애플리케이션 로그가 Loki에서 `requestId` 기준으로 추적됩니다.
 - JVM, DB pool, executor, HTTP latency dashboard가 있습니다.
@@ -631,7 +631,7 @@ MVP 기준:
 | Thread pool | bounded queue, timeout, metric, reject policy 정의 |
 | 식별자 | 내부 참조는 `song_id`, `chart_id` 사용 |
 | 원천값 | rank/medal은 score로 재계산하지 않음 |
-| 운영 | Jenkins, Docker, Flyway, health, smoke test 분리 |
+| 운영 | Docker, Flyway, health, smoke test 분리 |
 | 관측 | Prometheus, Grafana, Loki, Alloy 기준 적용 |
 
 ## 다음에 추가할 항목

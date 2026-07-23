@@ -591,7 +591,7 @@ jackets/{songHash}.png
 1. 신규 버전이 확인되면 관리자 또는 운영자가 `game_version_transitions`에 `DRAFT` 정책을 등록합니다.
 2. 실제 게임 데이터에서 점수 초기화 여부를 확인합니다.
 3. 정책을 `RESET` 또는 `CARRY_OVER`로 확정합니다.
-4. 관리자 적용 API 또는 Jenkins job으로 `playdata`를 chunk 단위 전환합니다.
+4. 관리자 적용 API 또는 운영 job으로 `playdata`를 chunk 단위 전환합니다.
 5. 전환 결과와 영향 row 수를 로그로 남기고, `playdata_history`에 `VERSION_INITIALIZED` 또는 `VERSION_CARRIED_OVER` 이벤트를 기록합니다.
 
 ### 팝클 산정 대상 마킹

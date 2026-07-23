@@ -149,7 +149,7 @@ High☆Cheers에서 처음으로 기존 점수 초기화가 확인되었고, 앞
 
 1. 신규 버전이 확인되면 관리자 API로 전환 정책을 등록합니다.
 2. 점수 초기화 여부가 확정되기 전에는 `DRAFT` 상태로 둡니다.
-3. 확정 후 적용 API 또는 Jenkins job으로 `playdata.current_version`을 chunk 단위로 갱신합니다.
+3. 확정 후 적용 API 또는 운영 job으로 `playdata.current_version`을 chunk 단위로 갱신합니다.
 4. `RESET`이면 `VERSION_INITIALIZED`, `CARRY_OVER`이면 `VERSION_CARRIED_OVER` 이력을 남깁니다.
 5. `display_popclass`는 전환 정책 적용 후 현재 `version_score` 기준으로 재계산합니다.
 

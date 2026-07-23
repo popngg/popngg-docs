@@ -104,6 +104,34 @@ public record SongSearchRequest(
 | rate limit | `429` |
 | 외부 시스템 실패 | `502` 또는 `503` |
 
+## Auth Cookie
+
+브라우저 기반 프론트 인증은 JWT를 JSON body로 직접 전달하지 않고, 백엔드가 `HttpOnly Secure Cookie`로 발급하는 방식을 우선합니다.
+
+로그인 성공 응답:
+
+- 서버는 `Set-Cookie: access_token=...` header를 내려줍니다.
+- 응답 body에는 token 원문을 포함하지 않습니다.
+- 프론트는 인증 요청에 `credentials: "include"`를 사용합니다.
+- 로그아웃은 서버가 같은 cookie 이름/path로 만료 cookie를 내려 삭제합니다.
+
+Cookie 기준:
+
+| 속성 | 기준 |
+| --- | --- |
+| `HttpOnly` | 필수. JavaScript에서 JWT 원문을 읽지 못하게 함 |
+| `Secure` | 운영 필수. HTTPS에서만 전송 |
+| `SameSite` | 같은 site면 `Lax`, 다른 site면 `None` |
+| `Path` | `/` |
+| `Max-Age` | access token 만료 시간과 동일 |
+
+CSRF 기준:
+
+- 상태 변경 API는 CSRF 방어를 둡니다.
+- 같은 site 배포에서는 `SameSite=Lax`와 `Origin`/`Referer` 검증을 기본 후보로 둡니다.
+- 프론트/백엔드가 다른 site라 `SameSite=None`이 필요하면 CSRF token을 추가합니다.
+- CORS는 허용 origin을 명시하고 credential을 허용합니다. wildcard origin과 credential 조합은 사용하지 않습니다.
+
 ## Pagination과 Limit
 
 - 무제한 목록 응답은 만들지 않습니다.

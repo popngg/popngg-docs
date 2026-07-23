@@ -47,6 +47,7 @@ MVP API는 OpenAPI 3.0 문서로 관리하고, MkDocs에서는 Redoc 페이지�
 | --- | --- | --- | --- | --- |
 | Yes | GET | `/` | healthcheck | 포함 |
 | Yes | POST | `/auth/login` | 로그인 | 포함 |
+| No | POST | `/auth/logout` | 인증 쿠키 삭제 | 포함 |
 | No | GET | `/auth/check` | 인증/어드민 권한 체크 | 후보. 관리자 화면에서 필요하면 포함 |
 | Yes | POST | `/auth/password-reset/request` | 비밀번호 복구 메일 요청 | 포함 |
 | Yes | POST | `/auth/password-reset/confirm` | 비밀번호 재설정 | 포함 |
@@ -86,7 +87,7 @@ MVP API는 OpenAPI 3.0 문서로 관리하고, MkDocs에서는 Redoc 페이지�
 | Yes | GET | `/playdata/compare` | 여러 유저 플레이데이터 비교 | 후보. 기존 기능 계승 |
 | No | POST | `/songs/{songId}/jacket` | 자켓 업로드 | 포함. 관리자 전용 |
 | No | POST | `/users/me/image` | 프로필 이미지 업로드 | 포함. 로그인 필요 |
-| No | GET | `/admin/migrations/status` | Flyway migration 상태 확인 | 후보. Jenkins/DB 확인으로 충분하면 제외 |
+| No | GET | `/admin/migrations/status` | Flyway migration 상태 확인 | 후보. 배포 로그/DB 확인으로 충분하면 제외 |
 | No | PATCH | `/admin/songs/{songId}` | 곡 메타데이터 보정 | 포함. 관리자 전용 |
 
 ## 레거시 API 계승 매핑
@@ -146,6 +147,7 @@ MVP API는 화면에서 필요한 데이터를 서버가 조합해서 내려주�
 | Method | Path | 설명 | 권한 |
 | --- | --- | --- | --- |
 | POST | `/auth/login` | 팝토모 ID와 비밀번호로 로그인 | 공개 |
+| POST | `/auth/logout` | 인증 쿠키 삭제 | 로그인 |
 | GET | `/auth/check` | 현재 토큰의 인증/권한 확인 | 로그인 |
 | POST | `/auth/password-reset/request` | 비밀번호 복구 메일 요청 | 공개 |
 | POST | `/auth/password-reset/confirm` | reset token으로 비밀번호 변경 | 공개 |
@@ -161,11 +163,28 @@ MVP API는 화면에서 필요한 데이터를 서버가 조합해서 내려주�
 
 | 필드 | 설명 |
 | --- | --- |
-| `accessToken` | JWT access token |
-| `tokenType` | `Bearer` |
 | `expiresIn` | 초 단위 만료 시간 |
 | `role` | `USER`, `ADMIN`, `BOT` |
 | `user` | 로그인한 유저의 최소 프로필. 선택 |
+
+로그인 성공 시 서버는 JWT access token을 JSON body로 내려주지 않고, `Set-Cookie` header로 `HttpOnly` cookie를 발급합니다.
+
+권장 cookie:
+
+| 항목 | 값 |
+| --- | --- |
+| 이름 | `access_token` |
+| `HttpOnly` | `true`. 프론트 JavaScript가 token 원문을 읽을 수 없게 함 |
+| `Secure` | `true`. HTTPS에서만 전송 |
+| `SameSite` | 같은 site 배포면 `Lax`, 프론트/백엔드가 다른 site면 `None` |
+| `Path` | `/` |
+| `Max-Age` | access token 만료 시간과 동일 |
+
+프론트는 인증 요청에 credential을 포함합니다. 예: `fetch(..., { credentials: "include" })`.
+
+`POST /auth/logout`은 같은 cookie 이름과 path로 만료 cookie를 내려 브라우저의 `access_token`을 삭제합니다.
+
+쿠키 인증을 사용하므로 상태 변경 API는 CSRF 방어를 함께 둡니다. 기본 후보는 `SameSite=Lax`와 `Origin`/`Referer` 검증이며, 프론트/백엔드가 다른 site라 `SameSite=None`을 써야 하면 CSRF token을 추가합니다.
 
 비밀번호 복구 정책:
 
@@ -424,7 +443,7 @@ POST /admin/game-version-transitions/{transitionId}/apply
 - 검색 read model, Redis cache, jacket/image key, 외부 URL cache를 무효화하거나 재빌드합니다.
 - `playdata`, `history`, `charts` 같은 영속 데이터는 `songHash`가 아니라 `songId`/`chartId`를 기준으로 연결되어야 합니다.
 
-MVP에서는 로그 테이블과 Jenkins 로그로 충분하면 일부 관리자 조회 API는 제외할 수 있습니다. 다만 곡 메타데이터 보정 API는 songhash 변경 가능성 때문에 별도 구현 후보로 유지합니다.
+MVP에서는 로그 테이블과 배포 로그로 충분하면 일부 관리자 조회 API는 제외할 수 있습니다. 다만 곡 메타데이터 보정 API는 songhash 변경 가능성 때문에 별도 구현 후보로 유지합니다.
 
 ### 게임 버전 전환 API
 
@@ -479,7 +498,7 @@ POST /admin/game-version-transitions/{transitionId}/apply
 }
 ```
 
-전환 정책이 등록되지 않은 상태에서 서버 현재 버전만 올라간 경우, 갱신 API는 임의로 초기화/승계하지 않습니다. 운영자가 정책을 등록해야 한다는 에러를 남기고, Jenkins 또는 모니터링 알림으로 드러나게 합니다.
+전환 정책이 등록되지 않은 상태에서 서버 현재 버전만 올라간 경우, 갱신 API는 임의로 초기화/승계하지 않습니다. 운영자가 정책을 등록해야 한다는 에러를 남기고, 배포 알림 또는 모니터링 알림으로 드러나게 합니다.
 
 ## 응답 설계
 
@@ -632,6 +651,7 @@ API 응답은 프론트가 구분할 수 있도록 각 플레이데이터에 다
 | API | 권한 |
 | --- | --- |
 | `POST /auth/login` | 공개 |
+| `POST /auth/logout` | 로그인 필요 |
 | `POST /auth/password-reset/*` | 공개 |
 | `PATCH /users/{poptomoId}` | 본인 또는 관리자 |
 | `PATCH /users/me/password` | 로그인 필요 |
@@ -642,4 +662,4 @@ API 응답은 프론트가 구분할 수 있도록 각 플레이데이터에 다
 | `POST /users/me/image` | 로그인 필요 |
 | `POST /playdata/imports` | 로그인 필요 또는 갱신 토큰 필요 |
 
-`GET /auth/check`는 관리자 화면이 필요하면 유지합니다. 단순 권한 확인만 필요하면 JWT claim으로 대체할 수 있습니다.
+`GET /auth/check`는 관리자 화면이 필요하면 유지합니다. 단순 권한 확인만 필요하면 서버가 쿠키의 JWT claim을 검증해 대체할 수 있습니다.

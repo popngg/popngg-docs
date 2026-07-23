@@ -2,7 +2,10 @@ const { chromium } = require("playwright");
 const path = require("path");
 
 const outputPath = path.resolve(__dirname, "../docs/assets/images/architecture-overview.png");
-const chromePath = "C:/Program Files/Google/Chrome/Application/chrome.exe";
+const chromePath = {
+  win32: "C:/Program Files/Google/Chrome/Application/chrome.exe",
+  darwin: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+}[process.platform];
 
 const simpleIcon = (slug, color = "111111") => `https://cdn.simpleicons.org/${slug}/${color}`;
 const devIcon = (name) => `https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/${name}/${name}-original.svg`;
@@ -253,7 +256,7 @@ const html = `<!doctype html>
   <div class="brand">popn<span>.gg</span></div>
   <div class="title">Refactoring Architecture</div>
   <div class="subtitle">Frontend on Vercel · Spring Boot Clean Architecture · Two Server Operations</div>
-  <div class="badge">Jenkins + Docker + Flyway</div>
+  <div class="badge">Docker + Flyway</div>
 
   <svg class="lines" viewBox="0 0 2400 1500">
     <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 Z" fill="#0f766e"/></marker></defs>
@@ -333,10 +336,10 @@ const html = `<!doctype html>
   </section>
 
   <section class="card cicd-card">
-    <div class="head h-slate"><img src="${devIcon("jenkins")}" alt="Jenkins" /><h2>Server 1</h2></div>
+    <div class="head h-slate"><img src="${simpleIcon("grafana", "ffffff")}" alt="Operations" /><h2>Server 1</h2></div>
     <div class="body">
       <div class="list">
-        <div class="row"><img src="${devIcon("jenkins")}" alt="Jenkins" /><div><b>Jenkins</b><span>test · build · image · deploy</span></div></div>
+        <div class="row"><img src="${devIcon("githubactions")}" alt="CI/CD" /><div><b>CI/CD Pipeline</b><span>test · build · image · deploy</span></div></div>
         <div class="row"><img src="${devIcon("docker")}" alt="Docker" /><div><b>Docker Registry</b><span>Container image artifact</span></div></div>
         <div class="row"><img src="${simpleIcon("flyway", "cc0200")}" alt="Flyway" /><div><b>Flyway</b><span>Schema migration step</span></div></div>
       </div>
@@ -378,7 +381,7 @@ const html = `<!doctype html>
 (async () => {
   const browser = await chromium.launch({
     headless: true,
-    executablePath: chromePath,
+    ...(chromePath ? { executablePath: chromePath } : {}),
   });
   const page = await browser.newPage({
     viewport: { width: 2400, height: 1500 },

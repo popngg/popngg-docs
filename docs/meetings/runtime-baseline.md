@@ -17,7 +17,7 @@ Fallback: JDK 21 + Spring Boot 4.x + Spring Framework 7.x
 
 프로젝트가 아직 초반이고 코드를 새로 작성하는 단계이므로 런타임과 Spring 세대 전환 비용이 가장 낮습니다.
 
-나중에 JPA, Querydsl, Jackson, Security, 테스트 코드, Docker/Jenkins 설정이 쌓인 뒤 전환하면 영향 범위가 더 커집니다.
+나중에 JPA, Querydsl, Jackson, Security, 테스트 코드, Docker/CI 설정이 쌓인 뒤 전환하면 영향 범위가 더 커집니다.
 
 ## 기대 이점
 
@@ -33,7 +33,7 @@ Fallback: JDK 21 + Spring Boot 4.x + Spring Framework 7.x
 - Querydsl은 Hibernate 7/JPA 3.2 대응 버전을 검토해야 합니다.
 - springdoc은 Spring Boot 4 대응 라인을 사용해야 합니다.
 - Jackson 3 전환 영향으로 JSON 직렬화/역직렬화 동작을 확인해야 합니다.
-- Docker base image와 Jenkins agent JDK 버전을 맞춰야 합니다.
+- Docker base image와 빌드 환경의 JDK 버전을 맞춰야 합니다.
 - JDK 25는 JDK 21보다 운영 사례와 문제 해결 자료가 적을 수 있습니다.
 
 ## 검증 조건
@@ -47,7 +47,7 @@ Fallback: JDK 21 + Spring Boot 4.x + Spring Framework 7.x
 - JPA repository smoke test
 - Spring Security filter chain smoke test
 - Docker image build
-- Jenkins build
+- CI build
 - `/actuator/health` 확인
 - `/actuator/prometheus` 확인
 
@@ -57,7 +57,7 @@ Fallback: JDK 21 + Spring Boot 4.x + Spring Framework 7.x
 
 - annotation processor가 JDK 25에서 안정적으로 동작하지 않음
 - Querydsl Q class 생성이 불안정함
-- Docker/Jenkins 환경에서 JDK 25 이미지 또는 toolchain 관리가 과도하게 복잡함
+- Docker/CI 환경에서 JDK 25 이미지 또는 toolchain 관리가 과도하게 복잡함
 - 핵심 라이브러리 호환성 문제가 반복됨
 
 JDK 21 fallback은 Spring Boot 4.x / Spring Framework 7.x 검증을 포기한다는 뜻이 아닙니다. 런타임만 JDK 21로 낮추고 Spring 세대 전환은 유지하는 방향을 우선합니다.

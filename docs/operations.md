@@ -1,11 +1,11 @@
 # 운영과 배포
 
-이 문서는 로컬 실행 방법보다 운영 기준을 먼저 설명합니다. 이번 리팩토링의 배포/운영은 레거시 서버 기준이 아니라, Jenkins와 Docker, Flyway, Prometheus/Grafana/Loki/Alloy를 전제로 정리합니다.
+이 문서는 로컬 실행 방법보다 운영 기준을 먼저 설명합니다. 이번 리팩토링의 배포/운영은 레거시 서버 기준이 아니라, Docker, Flyway, Prometheus/Grafana/Loki/Alloy를 전제로 정리합니다.
 
 <div class="doc-summary">
   <div class="doc-summary__item">
     <strong>서버 구성</strong>
-    <p>서버 1은 Jenkins와 관측 스택, 서버 2는 애플리케이션과 MySQL/Redis를 둡니다.</p>
+    <p>서버 1은 관측 스택, 서버 2는 애플리케이션과 MySQL/Redis를 둡니다.</p>
   </div>
   <div class="doc-summary__item">
     <strong>배포 기준</strong>
@@ -30,7 +30,7 @@ Swagger:
 
 ## 배포 기준
 
-배포는 Jenkins가 오케스트레이션하고, 실행 산출물은 Docker image로 배포합니다. DB schema migration은 Flyway와 별도 migration 단계로 관리합니다.
+배포는 파이프라인으로 오케스트레이션하고, 실행 산출물은 Docker image로 배포합니다. DB schema migration은 Flyway와 별도 migration 단계로 관리합니다.
 
 이번 프로젝트의 운영 기준은 다음입니다.
 
@@ -42,7 +42,7 @@ Swagger:
 
 ```text
 Git push
-→ Jenkins pipeline
+→ deployment pipeline
 → test
 → bootJar
 → Docker image build
@@ -54,15 +54,15 @@ Git push
 → smoke test
 ```
 
-## Jenkins
+## 배포 파이프라인
 
-Jenkins job은 같은 환경에 대한 동시 배포를 막아야 합니다.
+배포 job은 같은 환경에 대한 동시 배포를 막아야 합니다.
 
 JDK/Spring baseline:
 
 - 신규 기술 baseline은 `JDK 25 + Spring Boot 4.x / Spring Framework 7.x`를 우선 검증합니다.
-- JDK 25에서 Gradle, Querydsl, springdoc, Docker image build, Jenkins build 중 호환성 문제가 확인되면 `JDK 21`로 fallback합니다.
-- Jenkins agent와 Docker base image는 같은 JDK major version을 사용합니다.
+- JDK 25에서 Gradle, Querydsl, springdoc, Docker image build, CI build 중 호환성 문제가 확인되면 `JDK 21`로 fallback합니다.
+- 빌드 환경과 Docker base image는 같은 JDK major version을 사용합니다.
 - JDK 25 검증이 끝나기 전에는 운영 배포 기준을 확정하지 않고, spike branch에서 `./gradlew clean test`, bootJar, image build, app boot smoke test를 먼저 통과시킵니다.
 
 권장 stage:
@@ -109,7 +109,7 @@ MAIL_USERNAME=...
 MAIL_PASSWORD=...
 ```
 
-민감값은 Jenkins credential 또는 배포 환경의 secret 관리 기능으로 주입합니다. Git에 커밋하지 않습니다.
+민감값은 배포 환경의 secret 관리 기능으로 주입합니다. Git에 커밋하지 않습니다.
 
 ## 애플리케이션 자원 격리
 
@@ -281,9 +281,9 @@ db/migration/
 - `flyway_schema_history`를 운영 DB에서 확인할 수 있어야 합니다.
 - migration 실패 시 자동 재시도보다 원인 확인 후 수동 조치를 우선합니다.
 
-이번 프로젝트에서는 Spring Boot 시작 시 자동 실행보다 Jenkins의 명시 migration 단계 또는 migration container를 우선합니다. 애플리케이션 시작과 schema baseline 적용이 섞이면 실패 분석이 어려워집니다.
+이번 프로젝트에서는 Spring Boot 시작 시 자동 실행보다 배포 파이프라인의 명시 migration 단계 또는 migration container를 우선합니다. 애플리케이션 시작과 schema baseline 적용이 섞이면 실패 분석이 어려워집니다.
 
-로컬 개발에서는 Spring Boot 자동 Flyway 실행을 허용할 수 있지만, staging/production에서는 Jenkins 단계에서 migration 결과를 먼저 확인합니다.
+로컬 개발에서는 Spring Boot 자동 Flyway 실행을 허용할 수 있지만, staging/production에서는 배포 단계에서 migration 결과를 먼저 확인합니다.
 
 ## 로깅과 모니터링
 
@@ -293,7 +293,7 @@ db/migration/
 
 | 서버 | 역할 | 구성 |
 | --- | --- | --- |
-| 서버 1 | CI/CD와 관측 | Jenkins, Prometheus, Grafana, Loki, Alertmanager, Grafana Alloy |
+| 서버 1 | 관측 | Prometheus, Grafana, Loki, Alertmanager, Grafana Alloy |
 | 서버 2 | 서비스 실행 | Spring Boot 애플리케이션, MySQL, Redis, Grafana Alloy, node exporter |
 
 기본 흐름:
@@ -323,14 +323,14 @@ Docker stdout JSON log
 - Docker container restart count, OOMKilled 여부
 - 서버 CPU, memory, disk, load average
 - Flyway migration 성공/실패
-- Jenkins 배포 단계별 성공/실패
+- 배포 단계별 성공/실패
 - playdata import job 성공/실패, 처리 row 수, 실패 row 수
 
 필수 로그:
 
 - 애플리케이션 JSON structured log
 - Spring Boot access log 또는 HTTP request summary log
-- Jenkins build/deploy log
+- build/deploy log
 - Flyway migration log
 - playdata import/renew log
 - login failure log
@@ -358,7 +358,7 @@ Docker stdout JSON log
 - 비밀번호, reset token 원문, JWT secret은 절대 로그에 남기지 않습니다.
 - 갱신 코드는 외부 응답 원문 저장 여부를 별도 정책으로 정합니다.
 - 데이터 마이그레이션은 row count, 실패 row, old/new id 매핑을 파일 또는 테이블로 남깁니다.
-- Jenkins 배포 로그에는 secret이 출력되지 않게 masking을 확인합니다.
+- 배포 로그에는 secret이 출력되지 않게 masking을 확인합니다.
 
 ## 전환 당일 체크리스트
 
@@ -371,7 +371,7 @@ Docker stdout JSON log
 - [ ] 검증 SQL 통과
 - [ ] 신규 API smoke test 준비
 - [ ] 롤백 image tag 확인
-- [ ] Jenkins 동시 배포 lock 확인
+- [ ] 동시 배포 lock 확인
 - [ ] 서버 중단 공지
 - [ ] 최종 싱크
 - [ ] 서버 재오픈

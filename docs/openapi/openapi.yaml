@@ -13,7 +13,8 @@ info:
       - `song`과 `chart`는 분리하지만, 프론트가 쓰기 쉽게 GroupChart 응답을 제공합니다.
       - `songHash`는 변경될 수 있는 외부 조회 alias이며, 변경 API와 내부 참조는 `songId`, `chartId`를 우선 사용합니다.
       - API 응답은 code와 label을 함께 제공해 프론트 표시 가공을 줄입니다.
-      - 비밀번호, reset token 원문, JWT secret은 응답/로그에 노출하지 않습니다.
+      - 로그인 JWT는 JSON body가 아니라 `HttpOnly Secure Cookie`로 발급합니다.
+      - 비밀번호, reset token 원문, JWT 원문, JWT secret은 응답/로그에 노출하지 않습니다.
 servers:
   - url: https://api.popn.gg/api/v1
     description: Production
@@ -84,6 +85,12 @@ paths:
       responses:
         "200":
           description: 로그인 성공
+          headers:
+            Set-Cookie:
+              description: JWT access token cookie. `HttpOnly; Secure; Path=/; SameSite=Lax`를 기본 후보로 사용하고, cross-site 배포에서는 `SameSite=None`과 CSRF token을 함께 사용합니다.
+              schema:
+                type: string
+                example: access_token=eyJ...; HttpOnly; Secure; Path=/; Max-Age=43200; SameSite=Lax
           content:
             application/json:
               schema:
@@ -101,7 +108,7 @@ paths:
         프론트에서 JWT claim만으로 충분하면 MVP에서 제외할 수 있습니다.
       operationId: checkAuth
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       responses:
         "200":
           description: 인증 상태
@@ -113,6 +120,31 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "403":
           $ref: "#/components/responses/Forbidden"
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: 로그아웃
+      description: 인증 cookie를 만료시켜 브라우저의 access token을 삭제합니다.
+      operationId: logout
+      security:
+        - cookieAuth: []
+      responses:
+        "200":
+          description: 로그아웃 성공
+          headers:
+            Set-Cookie:
+              description: access token cookie 삭제. 로그인 발급 시와 같은 cookie 이름/path를 사용합니다.
+              schema:
+                type: string
+                example: access_token=; HttpOnly; Secure; Path=/; Max-Age=0; SameSite=Lax
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /auth/password-reset/request:
     post:
@@ -181,7 +213,7 @@ paths:
       description: 관리자용 곡/채보 등록 API입니다.
       operationId: createChart
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -312,7 +344,7 @@ paths:
       summary: 유저 프로필 편집
       operationId: updateUserProfile
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: "#/components/parameters/PoptomoId"
       requestBody:
@@ -340,7 +372,7 @@ paths:
       summary: 비밀번호 변경
       operationId: updatePassword
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -366,7 +398,7 @@ paths:
       summary: 비밀번호 복구용 이메일 등록/변경
       operationId: updateEmail
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -423,7 +455,7 @@ paths:
       description: 기존 renew 역할입니다. 크롤링 원천에서 얻은 score, rankCode, medalCode를 함께 제출합니다.
       operationId: upsertPlaydata
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -602,7 +634,7 @@ paths:
       summary: 자켓 업로드
       operationId: uploadJacket
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: "#/components/parameters/SongId"
       requestBody:
@@ -628,7 +660,7 @@ paths:
       summary: 프로필 이미지 업로드
       operationId: uploadUserImage
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -651,7 +683,7 @@ paths:
       description: 장르명, 제목, 작곡가, 버전, 자켓 정보를 보정합니다. songHash가 바뀔 수 있으므로 대상은 songId로 지정합니다.
       operationId: updateSongMetadata
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - $ref: "#/components/parameters/SongId"
       requestBody:
@@ -722,10 +754,10 @@ paths:
       tags:
         - Admin
       summary: Flyway migration 상태 확인
-      description: 운영/관리자 도구용 후보 API입니다. Jenkins와 DB 직접 확인으로 충분하면 MVP에서 제외할 수 있습니다.
+      description: 운영/관리자 도구용 후보 API입니다. 배포 로그와 DB 직접 확인으로 충분하면 MVP에서 제외할 수 있습니다.
       operationId: getMigrationStatus
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       responses:
         "200":
           description: 마이그레이션 상태
@@ -742,7 +774,7 @@ paths:
       description: 버전 전환 시 점수 초기화 또는 승계 정책을 조회합니다.
       operationId: listGameVersionTransitions
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       responses:
         "200":
           description: 게임 버전 전환 정책 목록
@@ -759,7 +791,7 @@ paths:
       description: 신규 버전에서 점수를 초기화할지 이전 버전 점수를 승계할지 선언합니다.
       operationId: createGameVersionTransition
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       requestBody:
         required: true
         content:
@@ -786,7 +818,7 @@ paths:
       description: 등록된 전환 정책에 따라 playdata.current_version과 version_score를 chunk 단위로 전환합니다.
       operationId: applyGameVersionTransition
       security:
-        - bearerAuth: []
+        - cookieAuth: []
       parameters:
         - name: transitionId
           in: path
@@ -810,10 +842,11 @@ paths:
 
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: JWT access token은 로그인 성공 시 `HttpOnly Secure Cookie`로 발급합니다.
 
   parameters:
     SongHash:
@@ -1067,11 +1100,6 @@ components:
             data:
               type: object
               properties:
-                accessToken:
-                  type: string
-                tokenType:
-                  type: string
-                  example: Bearer
                 expiresIn:
                   type: integer
                   example: 43200
