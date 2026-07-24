@@ -9,12 +9,16 @@ info:
 
     주요 정책:
       - 모든 경로는 `/api/v1` prefix 아래에 둡니다.
+      - 공통 성공 응답은 `code`, `message`, 선택적인 `data`를 사용하고 오류 응답은
+        `code`, `message`, `details`를 사용합니다.
       - 랭크는 서버가 점수로 계산하지 않고 갱신 원천 데이터에서 수집한 값을 저장합니다.
       - `song`과 `chart`는 분리하지만, 프론트가 쓰기 쉽게 GroupChart 응답을 제공합니다.
       - `songHash`는 변경될 수 있는 외부 조회 alias이며, 변경 API와 내부 참조는 `songId`, `chartId`를 우선 사용합니다.
       - API 응답은 code와 label을 함께 제공해 프론트 표시 가공을 줄입니다.
       - 로그인 JWT는 JSON body가 아니라 `HttpOnly Secure Cookie`로 발급합니다.
       - 비밀번호, reset token 원문, JWT 원문, JWT secret은 응답/로그에 노출하지 않습니다.
+    MVP 이후 항목은 검색 태그 기여/승인 UI, 관리자 검수 UI, 상세 모니터링,
+    Redis 검색 read model과 여러 유저 비교 API입니다.
 servers:
   - url: https://api.popn.gg/api/v1
     description: Production
