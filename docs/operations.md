@@ -362,18 +362,7 @@ Docker stdout JSON log
 
 ## 전환 당일 체크리스트
 
-- [ ] Docker image build 완료
-- [ ] Docker image registry push 완료
-- [ ] 신규 스키마 Flyway migration 리허설 완료
-- [ ] 데이터 싱크 리허설 완료
-- [ ] 운영 DB 백업 완료
-- [ ] migration precheck 통과
-- [ ] 검증 SQL 통과
-- [ ] 신규 API smoke test 준비
-- [ ] 롤백 image tag 확인
-- [ ] 동시 배포 lock 확인
-- [ ] 서버 중단 공지
-- [ ] 최종 싱크
-- [ ] 서버 재오픈
-- [ ] health check 통과
-- [ ] 주요 화면 확인
+실제 전환은 [MVP 전환 당일 체크리스트](cutover-checklist.md)를 위에서 아래로
+실행합니다. 이 runbook에는 DB backup과 restore 확인, migration precheck, Flyway,
+final data sync, verification SQL, Docker deploy, health, smoke test, rollback 판정과
+결과 기록 위치가 포함됩니다.

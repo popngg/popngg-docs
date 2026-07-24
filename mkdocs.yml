@@ -92,4 +92,5 @@ nav:
       - Git 컨벤션: conventions/git.md
   - 운영:
       - 운영과 배포: operations.md
+      - MVP 전환 당일 체크리스트: cutover-checklist.md
   - LLM 컨텍스트: llm-context.md
