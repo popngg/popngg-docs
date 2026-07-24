@@ -45,6 +45,17 @@ infra -> application/domain
 
 `application`은 port를 정의하고, `infra`가 adapter로 구현합니다. `api`는 request를 command로 변환하고 use case를 호출한 뒤 response를 반환합니다.
 
+### 구현 체크리스트
+
+- [ ] `api`의 Controller는 application use case만 호출하며 Repository를 주입하지 않는다.
+- [ ] `api`는 infra의 JPA Entity/Repository를 compile dependency로 참조하지 않는다.
+- [ ] `application`은 `domain`만 의존하고 HTTP DTO/JPA Entity를 참조하지 않는다.
+- [ ] `domain`은 다른 프로젝트 모듈을 의존하지 않는다.
+- [ ] `infra`는 application port를 구현하고 application/domain만 의존한다.
+- [ ] 실행 모듈인 `api`가 infra adapter를 조립할 때는 runtime/composition root 경계로 제한한다.
+- [ ] 계층 간 입력/출력은 Request → Command/Query → Result/View → Response로 변환한다.
+- [ ] 새 의존성을 추가한 PR은 `./gradlew dependencies`로 방향을 확인한다.
+
 ## 헥사고널 아키텍처 규칙
 
 ```text

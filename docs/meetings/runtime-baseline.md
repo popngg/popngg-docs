@@ -1,17 +1,26 @@
 # Runtime Baseline
 
-## 결정 방향
+## 확정 baseline
 
-신규 프로젝트는 `JDK 25 + Spring Boot 4.x / Spring Framework 7.x` 조합을 우선 검증합니다.
-
-호환성 문제가 확인되면 `JDK 21`로 fallback합니다.
+2026-07-24 기준으로 다음 조합을 채택합니다.
 
 ```text
-1순위: JDK 25 + Spring Boot 4.x + Spring Framework 7.x
-Fallback: JDK 21 + Spring Boot 4.x + Spring Framework 7.x
+JDK: 21 LTS
+Spring Boot: 3.5.16
+Spring Framework: Spring Boot 3.5.16이 관리하는 6.2.x
+Gradle Wrapper: 8.13
 ```
 
-현재 코드 baseline은 `Java 17 + Spring Boot 3.2.4`입니다. 이 값은 현재 구현 상태를 설명하는 기준이고, 신규 목표 baseline은 위 검증 결과에 따라 갱신합니다.
+JDK 25는 우선 후보로 검토했지만 이번 baseline에서는 채택하지 않습니다. 현재 개발
+환경에 JDK 25가 없고, Gradle을 JDK 25에서 실행하려면 9.1 이상으로 함께 올려야 하며,
+Querydsl annotation processor와 Spring Boot 4/Jackson 3 전환까지 한 번에 검증해야
+합니다. 런타임, 빌드 도구, 프레임워크 세대를 동시에 바꾸지 않도록 JDK 21로
+fallback합니다.
+
+Spring Boot 3.5.16은 기존 3.2 코드와 Jakarta/Jackson 2 호환성을 유지하면서 보안 및
+의존성 baseline을 먼저 올리기 위한 과도기 버전입니다. Spring Boot 4.1 /
+Spring Framework 7 전환은 Querydsl, springdoc, Jackson 3 호환성 검증을 별도 작업으로
+분리합니다.
 
 ## 왜 지금 검증하는가
 
@@ -36,28 +45,26 @@ Fallback: JDK 21 + Spring Boot 4.x + Spring Framework 7.x
 - Docker base image와 빌드 환경의 JDK 버전을 맞춰야 합니다.
 - JDK 25는 JDK 21보다 운영 사례와 문제 해결 자료가 적을 수 있습니다.
 
-## 검증 조건
+## 검증 명령
 
-아래 항목이 통과하면 JDK 25 baseline을 유지합니다.
+```bash
+JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew clean test
+JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew :popngg-api:bootJar
+JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew :popngg-api:bootRun \
+  --args='--spring.profiles.active=local'
+```
 
-- `./gradlew clean test`
-- Querydsl Q class 생성
-- Spring Boot application boot
-- Swagger UI 또는 OpenAPI 문서 기동
-- JPA repository smoke test
+CI와 Docker의 build/runtime JDK도 21로 맞춥니다. `bootRun` 검증에는 로컬 DB와
+필수 secret이 필요하며, 준비되지 않은 환경에서는 `bootJar`까지를 필수 검증으로
+봅니다.
+
+## 다음 baseline 승격 조건
+
+JDK 25와 Spring Boot 4.1로 승격하려면 아래를 모두 별도 브랜치에서 통과해야 합니다.
+
+- Gradle 9.1+ wrapper와 CI/Docker runtime 정렬
+- Querydsl Q class 생성 및 JPA repository smoke test
+- Jackson 3 직렬화 회귀 테스트
 - Spring Security filter chain smoke test
-- Docker image build
-- CI build
-- `/actuator/health` 확인
-- `/actuator/prometheus` 확인
-
-## 실패 시 fallback 기준
-
-다음 문제가 발생하고 단기간에 해결하기 어렵다면 JDK 21로 fallback합니다.
-
-- annotation processor가 JDK 25에서 안정적으로 동작하지 않음
-- Querydsl Q class 생성이 불안정함
-- Docker/CI 환경에서 JDK 25 이미지 또는 toolchain 관리가 과도하게 복잡함
-- 핵심 라이브러리 호환성 문제가 반복됨
-
-JDK 21 fallback은 Spring Boot 4.x / Spring Framework 7.x 검증을 포기한다는 뜻이 아닙니다. 런타임만 JDK 21로 낮추고 Spring 세대 전환은 유지하는 방향을 우선합니다.
+- springdoc/OpenAPI 기동
+- `clean test`, `bootJar`, 애플리케이션 boot, Docker image build
