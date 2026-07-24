@@ -3,6 +3,22 @@
 확정되지 않은 내용은 `Proposed`로 두고, 합의되면 `Accepted`로 바꿉니다.
 레거시 코드는 결정의 참고 자료일 뿐이고, 최종 판단은 신규 설계와 현재 요구사항을 기준으로 합니다.
 
+## ADR-013: JVM과 Spring baseline
+
+- 상태: Accepted
+- 결정: JDK 21, Spring Boot 3.5.16, Spring Framework 6.2.x, Gradle 8.13을 baseline으로 사용한다.
+- 이유: JDK 25 채택에는 Gradle 9.1+, Spring Boot 4/Jackson 3, Querydsl processor를 동시에 검증해야 한다. 현재 코드를 안전하게 올릴 수 있는 JDK 21 fallback을 먼저 확정한다.
+- 영향: 개발 환경, CI, Docker build/runtime은 JDK 21로 통일한다.
+- 후속: Spring Boot 4.1/JDK 25 전환은 Querydsl, springdoc, Jackson 3 회귀 검증을 포함한 별도 작업으로 수행한다.
+
+## ADR-014: 멀티모듈 의존 방향
+
+- 상태: Accepted
+- 결정: `api -> application -> domain`, `infra -> application/domain` 방향만 허용한다.
+- 이유: HTTP와 영속성 기술이 use case 및 도메인 규칙에 침투하지 않게 한다.
+- 영향: Controller의 Repository 직접 호출, application의 JPA Entity/HTTP DTO 참조, domain의 Spring/JPA 참조를 금지한다.
+- 영향: 실행 모듈의 adapter 조립은 composition root/runtime 경계로 제한한다.
+
 ## ADR-001: DB FK 제거
 
 - 상태: Proposed
