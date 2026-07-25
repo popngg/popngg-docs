@@ -18,6 +18,72 @@
 - 이번 리팩토링은 DB 구조 변화가 크므로 마이그레이션을 작은 테이블 단위가 아니라 큰 세션 단위로 관리합니다.
 - 각 세션은 목표, 입력 데이터, 산출물, 검증 SQL, 롤백/중단 기준을 함께 가집니다.
 
+## 현재 구현된 전체 과정
+
+스키마 생성과 legacy dump 데이터 변환은 서로 다른 단계입니다. Adminer에서
+Flyway가 만든 빈 테이블이 보이는 것만으로는 dump 데이터 마이그레이션이 완료된
+것이 아닙니다.
+
+```text
+외부 legacy SQL dump
+        |
+        v
+격리된 legacy DB에 restore (원본 보존)
+        |
+        +-----------------------------+
+                                      |
+빈 target DB -- Flyway V1~V4 --------+--> MVP 스키마 생성
+                                      |
+                                      v
+                              bulk transform 실행
+                                      |
+                                      v
+                          mapping/failure 기록 생성
+                                      |
+                                      v
+                         건수 및 무결성 검증 실행
+                                      |
+                          실패 1건 이상이면 중단
+                                      |
+                                      v
+                              검증된 target DB
+```
+
+1. 외부 dump를 격리된 legacy DB에 복원합니다. 원본 dump와 복원 DB는 변환
+   과정에서 수정하지 않습니다.
+2. 비어 있는 target DB에 Flyway `V1`~`V4`를 적용해 계정, 곡/채보,
+   플레이데이터/이력, 로그/버전 전환 스키마를 만듭니다.
+3. bulk transform이 legacy 데이터를 신규 구조로 적재합니다.
+   - legacy `user`는 `users`와 `user_profiles`로 분리합니다.
+   - legacy `chart`는 같은 song hash를 묶어 `songs`와 `charts`로 분리합니다.
+   - `playdata`는 28버전 current/all-time 상태로 변환합니다.
+   - `history`는 `event_type=MIGRATION`인 `playdata_history`로 옮깁니다.
+4. old/new ID 관계는 `migration_*_map`에, 적재할 수 없는 행은 원본 값 없이
+   `migration_failures`에 숫자 ID와 사유 코드만 기록합니다.
+5. verification job이 원본/대상 건수, orphan, unique, mapping, popclass,
+   credit 초기화를 확인합니다. `failure_count`가 하나라도 0이 아니면 cutover를
+   중단합니다.
+
+예를 들어 동일한 `(user_id, chart_id)`에 점수 90000과 95000이 있으면 95000
+한 건만 `playdata`에 적재하고 다른 행은 `DUPLICATE_USER_CHART`로 기록합니다.
+레거시 popclass는 `user_profiles.legacy_popclass`에 보존하며, 신규 credit 4종은
+0으로 초기화합니다.
+
+### Adminer에서 상태 확인
+
+Adminer는 target DB의 결과를 확인하는 도구이며 migration을 대신 실행하지
+않습니다. 다음 상태를 구분해야 합니다.
+
+| 확인 결과 | 의미 |
+| --- | --- |
+| `flyway_schema_history`에 V1~V4가 있고 업무 테이블 row가 0 | 스키마 생성만 완료 |
+| `migration_sessions`와 `migration_*_map`이 있고 업무 테이블에 row가 있음 | 데이터 변환 실행 |
+| `migration_verification_results.failure_count`가 모두 0 | 검증까지 통과 |
+
+현재 실행 코드와 SQL의 source of truth는 백엔드 저장소의 `migration/`과
+`popngg-infra/src/main/resources/db/migration/`입니다. dump 원문, 계정 식별자,
+비밀번호 등 민감한 값은 문서나 검증 리포트에 기록하지 않습니다.
+
 ## 마이그레이션 세션 전략
 
 이번 마이그레이션은 다음처럼 큰 세션으로 나눕니다.
@@ -47,12 +113,11 @@
 db/migration/
   V1__baseline_account_and_security.sql
   V2__baseline_music_catalog.sql
-  V3__baseline_playdata_and_logs.sql
-  V4__baseline_support_tables.sql
-  V5__seed_constants.sql
+  V3__baseline_playdata_and_history.sql
+  V4__baseline_logs_and_version_transitions.sql
 ```
 
-실제 저장 위치는 Flyway 의존성과 datasource 설정을 어느 모듈이 소유하는지 결정한 뒤 확정합니다. 현재 멀티모듈 구조에서는 `popngg-infra/src/main/resources/db/migration/`, 애플리케이션 실행 모듈의 `src/main/resources/db/migration/`, 또는 별도 migration 모듈 중 하나를 선택해야 합니다.
+실제 저장 위치는 `popngg-infra/src/main/resources/db/migration/`입니다.
 
 초기 MVP에서는 테이블 하나당 파일 하나로 너무 잘게 쪼개지 않습니다. 대신 리뷰 가능한 큰 세션 단위로 묶습니다.
 
@@ -62,9 +127,8 @@ db/migration/
 | --- | --- |
 | `V1__baseline_account_and_security.sql` | `users`, `password_reset_tokens`, 인증/계정 관련 인덱스 |
 | `V2__baseline_music_catalog.sql` | `songs`, `charts`, 곡/채보 인덱스 |
-| `V3__baseline_playdata_and_logs.sql` | `playdata`, `game_version_transitions`, `playdata_history`, `renew_logs`, `login_logs` |
-| `V4__baseline_support_tables.sql` | mapping/검증 보조 테이블이 DB에 필요할 경우 |
-| `V5__seed_constants.sql` | rank/medal/difficulty seed를 DB로 둘 경우. MVP에서 코드 상수면 생략 가능 |
+| `V3__baseline_playdata_and_history.sql` | `playdata`, `playdata_history` |
+| `V4__baseline_logs_and_version_transitions.sql` | `game_version_transitions`, `renew_logs`, `login_logs` |
 
 주의:
 
