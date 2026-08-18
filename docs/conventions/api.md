@@ -49,7 +49,7 @@ public record SongSearchRequest(
 
 응답은 화면에 필요한 표시 정보를 포함합니다. 프론트가 rank/medal/difficulty label을 다시 계산하지 않게 합니다.
 
-권장 형태:
+페이지네이션을 사용하지 않는 목록의 권장 형태:
 
 ```json
 {
@@ -64,7 +64,7 @@ public record SongSearchRequest(
 규칙:
 
 - 목록 응답은 가능하면 `items`로 감쌉니다.
-- paging 또는 limit 정보는 `meta`에 둡니다.
+- 페이지네이션 API는 공통 `Page<T>` 계약을 사용합니다.
 - code/label/sortOrder가 필요한 값은 객체로 내려줍니다.
 - 날짜는 ISO-8601 문자열을 사용합니다.
 - 내부 DB id와 외부 식별자가 함께 필요하면 둘 다 명확히 내려줍니다. 예: `songId`, `songHash`
@@ -135,6 +135,8 @@ CSRF 기준:
 ## Pagination과 Limit
 
 - 무제한 목록 응답은 만들지 않습니다.
+- `GET /api/v1/songs`, `GET /api/v1/users/rankings`의 응답은 `items`, `totalItems`, `totalPages`, `hasPrev`, `hasNext`를 사용합니다.
+- 페이지 응답에는 `page`, `size`를 넣지 않습니다. 요청의 `page`는 0부터 시작합니다.
 - 단순 top N 검색은 `limit`을 사용합니다.
 - 정렬 가능한 목록은 cursor pagination을 우선 검토합니다.
 - offset pagination은 데이터가 작고 정렬 기준이 안정적일 때만 사용합니다.

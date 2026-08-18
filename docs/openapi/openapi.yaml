@@ -20,8 +20,10 @@ info:
     MVP 이후 항목은 검색 태그 기여/승인 UI, 관리자 검수 UI, 상세 모니터링,
     Redis 검색 read model과 여러 유저 비교 API입니다.
 servers:
+  - url: http://161.33.165.110/api/v1
+    description: Development only (운영 주소 아님)
   - url: https://api.popn.gg/api/v1
-    description: Production
+    description: Production candidate (현재 dev 주소와 구분)
   - url: http://localhost:8080/api/v1
     description: Local development
 tags:
@@ -91,7 +93,7 @@ paths:
           description: 로그인 성공
           headers:
             Set-Cookie:
-              description: JWT access token cookie. `HttpOnly; Secure; Path=/; SameSite=Lax`를 기본 후보로 사용하고, cross-site 배포에서는 `SameSite=None`과 CSRF token을 함께 사용합니다.
+              description: JWT access token cookie. `HttpOnly; Path=/; SameSite=Lax`이며 HTTPS에서는 `Secure`를 사용합니다. 임시 HTTP dev에서는 `AUTH_COOKIE_SECURE=false`를 사용합니다.
               schema:
                 type: string
                 example: access_token=eyJ...; HttpOnly; Secure; Path=/; Max-Age=43200; SameSite=Lax
@@ -102,28 +104,22 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
-  /auth/check:
+  /auth/session:
     get:
       tags:
         - Auth
-      summary: 인증/관리자 권한 확인
+      summary: 현재 로그인 세션 확인
       description: |
-        관리자 화면 또는 업로드 화면 진입 전에 토큰과 권한을 확인하는 API 후보입니다.
-        프론트에서 JWT claim만으로 충분하면 MVP에서 제외할 수 있습니다.
-      operationId: checkAuth
-      security:
-        - cookieAuth: []
+        인증 여부와 무관하게 HTTP 200을 반환합니다. 인증 상태면 최소 프로필을,
+        비인증 상태면 `data: null`을 반환합니다.
+      operationId: getAuthSession
       responses:
         "200":
           description: 인증 상태
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthCheckResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          $ref: "#/components/responses/Forbidden"
+                $ref: "#/components/schemas/AuthSessionResponse"
 
   /auth/logout:
     post:
@@ -132,8 +128,6 @@ paths:
       summary: 로그아웃
       description: 인증 cookie를 만료시켜 브라우저의 access token을 삭제합니다.
       operationId: logout
-      security:
-        - cookieAuth: []
       responses:
         "200":
           description: 로그아웃 성공
@@ -147,8 +141,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SuccessResponse"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
 
   /auth/password-reset/request:
     post:
@@ -1102,28 +1094,26 @@ components:
         - type: object
           properties:
             data:
-              type: object
-              properties:
-                expiresIn:
-                  type: integer
-                  example: 43200
-                role:
-                  type: string
-                  example: USER
-    AuthCheckResponse:
+              nullable: true
+              example: null
+    AuthSessionResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
         - type: object
           properties:
             data:
               type: object
+              nullable: true
               properties:
-                authenticated:
-                  type: boolean
-                role:
+                poptomoId:
                   type: string
-                isAdmin:
-                  type: boolean
+                  example: 1234-5678-9012
+                userName:
+                  type: string
+                  example: popper
+                avatarUrl:
+                  type: string
+                  nullable: true
     PasswordResetRequest:
       type: object
       required:
@@ -1359,8 +1349,15 @@ components:
                   type: array
                   items:
                     $ref: "#/components/schemas/GroupedChart"
-                page:
-                  $ref: "#/components/schemas/PageInfo"
+                totalItems:
+                  type: integer
+                  format: int64
+                totalPages:
+                  type: integer
+                hasPrev:
+                  type: boolean
+                hasNext:
+                  type: boolean
     GroupedChartResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"
@@ -1524,8 +1521,15 @@ components:
                   type: array
                   items:
                     $ref: "#/components/schemas/UserRankingItem"
-                page:
-                  $ref: "#/components/schemas/PageInfo"
+                totalItems:
+                  type: integer
+                  format: int64
+                totalPages:
+                  type: integer
+                hasPrev:
+                  type: boolean
+                hasNext:
+                  type: boolean
     UserRankingItem:
       allOf:
         - $ref: "#/components/schemas/UserProfile"

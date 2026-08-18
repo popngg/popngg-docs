@@ -23,10 +23,33 @@
 ./gradlew :popngg-api:bootRun --args='--spring.profiles.active=local'
 ```
 
-Swagger:
+로컬 Swagger:
 
-- `http://localhost:8080/swagger-ui.html`
+- `http://localhost:8080/swagger-ui/index.html`
 - `http://localhost:8080/v3/api-docs`
+
+현재 OCI dev 환경:
+
+| 항목 | 값 |
+| --- | --- |
+| API | `http://161.33.165.110` |
+| Swagger UI | `http://161.33.165.110/swagger-ui/index.html` |
+| OpenAPI JSON | `http://161.33.165.110/v3/api-docs` |
+| 공개 health check | `GET http://161.33.165.110/actuator/health` |
+
+위 주소는 **dev 환경 전용**이며 운영 주소가 아닙니다. 현재 백엔드는 Spring Boot `3.5.16`과 호환되는 `springdoc-openapi 2.8.x`(`2.8.17`)를 사용합니다. 운영에서는 Swagger 공개 범위를 제한하거나 비활성화하고, Actuator 공개 범위도 다시 검토합니다.
+
+dev 네트워크 구성:
+
+```text
+Internet → OCI Compute Instance:80 → Nginx → 127.0.0.1:8080 Spring API
+                                             └→ Docker 내부 MySQL:3306
+```
+
+- Nginx만 80번 포트에서 요청을 받고 Spring API로 reverse proxy합니다.
+- Spring API는 호스트의 `127.0.0.1:8080`에만 바인딩합니다.
+- MySQL 3306, Spring 8080, Adminer는 외부에 공개하지 않습니다.
+- OCI 인바운드는 SSH 22, HTTP 80, 향후 HTTPS 443만 허용합니다.
 
 ## 배포 기준
 
@@ -58,10 +81,38 @@ Git push
 
 배포 job은 같은 환경에 대한 동시 배포를 막아야 합니다.
 
-JDK/Spring baseline:
+현재 dev 자동 배포는 `main` 브랜치 push(머지 포함)의 CI 성공 후 다음 순서로 실행됩니다.
 
-- 신규 기술 baseline은 `JDK 25 + Spring Boot 4.x / Spring Framework 7.x`를 우선 검증합니다.
-- JDK 25에서 Gradle, Querydsl, springdoc, Docker image build, CI build 중 호환성 문제가 확인되면 `JDK 21`로 fallback합니다.
+1. Java 21로 빌드합니다.
+2. 전체 테스트를 실행합니다.
+3. JaCoCo 리포트를 생성합니다.
+4. CI 성공 여부를 확인합니다.
+5. GitHub Actions 전용 SSH 키로 OCI dev 서버에 접속합니다.
+6. 서버 저장소의 `main` 브랜치를 fast-forward로 갱신합니다.
+7. 테스트된 커밋 SHA와 서버 `HEAD`가 같은지 검사합니다.
+8. 해당 SHA를 태그로 Docker 이미지를 빌드합니다.
+9. Flyway migration 컨테이너를 실행합니다.
+10. API 컨테이너를 교체합니다.
+11. `/actuator/health`와 songs/rankings smoke test를 실행합니다.
+
+배포 성공 여부는 GitHub 저장소의 **Repository → Actions → Deploy dev**에서 확인합니다. `deployment image=<repository>:<SHA> status=healthy` 로그까지 출력되어야 완료입니다.
+
+자동 배포 안전장치:
+
+- CI가 실패하면 `Deploy dev` job을 실행하지 않습니다.
+- `deploy-dev` concurrency group과 서버의 deployment lock으로 한 번에 하나만 배포합니다.
+- `latest` 태그를 거부하고 테스트된 커밋 SHA를 이미지 태그로 사용합니다.
+- 서버 저장소 갱신에는 읽기 전용 GitHub Deploy Key를 사용합니다.
+- GitHub Actions의 서버 접속 키는 사용자 개인 SSH 키와 분리합니다.
+- `.env`, 비밀번호, JWT secret, SSH private key를 Git에 커밋하지 않습니다.
+- 기존 SQL dump 데이터 이전은 일반 배포에서 자동 재실행하지 않습니다.
+- 일반 배포에서는 Flyway 스키마 migration만 실행합니다.
+
+현재 JDK/Spring baseline:
+
+- 빌드와 Docker image는 Java 21을 사용합니다.
+- 애플리케이션은 Spring Boot 3.5.x를 사용합니다.
+- OpenAPI UI는 Spring Boot 3.5와 호환되는 springdoc-openapi 2.8.x를 사용합니다.
 - 빌드 환경과 Docker base image는 같은 JDK major version을 사용합니다.
 - JDK 25 검증이 끝나기 전에는 운영 배포 기준을 확정하지 않고, spike branch에서 `./gradlew clean test`, bootJar, image build, app boot smoke test를 먼저 통과시킵니다.
 
@@ -100,16 +151,31 @@ popngg-backend:sha-921c928
 
 ```text
 SPRING_PROFILES_ACTIVE=prod
-SPRING_DATASOURCE_URL=...
-SPRING_DATASOURCE_USERNAME=...
-SPRING_DATASOURCE_PASSWORD=...
-JWT_SECRET=...
-MAIL_HOST=...
-MAIL_USERNAME=...
-MAIL_PASSWORD=...
+SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/popngg
+SPRING_DATASOURCE_USERNAME=popngg
+SPRING_DATASOURCE_PASSWORD=<DB_PASSWORD>
+DB_PASSWORD=<DB_PASSWORD>
+DB_ROOT_PASSWORD=<DB_ROOT_PASSWORD>
+JWT_SECRET_KEY=<64자 이상의 무작위 비밀 값>
+AUTH_COOKIE_SECURE=true
 ```
 
 민감값은 배포 환경의 secret 관리 기능으로 주입합니다. Git에 커밋하지 않습니다.
+
+`AUTH_COOKIE_SECURE` 기준:
+
+| 환경 | 값 | 설명 |
+| --- | --- | --- |
+| 현재 IP 기반 HTTP dev | `false` | 임시 HTTP 환경에서만 사용 |
+| HTTPS dev/staging | `true` | HTTPS 전환 즉시 적용 |
+| 운영 | `true` | 반드시 `true` |
+
+## 보안 주의사항
+
+- MySQL 3306, Spring 8080, Adminer를 외부에 공개하지 않습니다.
+- 실제 비밀번호, JWT secret, SSH private key를 문서나 Git commit에 넣지 않습니다.
+- 도메인 연결 후 HTTPS를 적용하고 `AUTH_COOKIE_SECURE=true`로 전환합니다.
+- 운영 전 Swagger와 Actuator의 공개 범위를 재검토합니다.
 
 ## 애플리케이션 자원 격리
 

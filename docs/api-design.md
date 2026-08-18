@@ -47,8 +47,8 @@ MVP API는 OpenAPI 3.0 문서로 관리하고, MkDocs에서는 Redoc 페이지�
 | --- | --- | --- | --- | --- |
 | Yes | GET | `/` | healthcheck | 포함 |
 | Yes | POST | `/auth/login` | 로그인 | 포함 |
-| No | POST | `/auth/logout` | 인증 쿠키 삭제 | 포함 |
-| No | GET | `/auth/check` | 인증/어드민 권한 체크 | 후보. 관리자 화면에서 필요하면 포함 |
+| Yes | GET | `/auth/session` | 현재 로그인 세션 확인 | 포함. 인증 여부와 무관하게 200 |
+| Yes | POST | `/auth/logout` | 인증 쿠키 삭제 | 포함. 비인증 상태에서도 호출 가능 |
 | Yes | POST | `/auth/password-reset/request` | 비밀번호 복구 메일 요청 | 포함 |
 | Yes | POST | `/auth/password-reset/confirm` | 비밀번호 재설정 | 포함 |
 | Yes | GET | `/constants` | 랭크/메달/난이도 등 게임 코드/표시 정책 | 포함 |
@@ -147,8 +147,8 @@ MVP API는 화면에서 필요한 데이터를 서버가 조합해서 내려주�
 | Method | Path | 설명 | 권한 |
 | --- | --- | --- | --- |
 | POST | `/auth/login` | 팝토모 ID와 비밀번호로 로그인 | 공개 |
-| POST | `/auth/logout` | 인증 쿠키 삭제 | 로그인 |
-| GET | `/auth/check` | 현재 토큰의 인증/권한 확인 | 로그인 |
+| GET | `/auth/session` | 현재 세션 확인. 인증 여부와 무관하게 HTTP 200 | 공개 |
+| POST | `/auth/logout` | 인증 쿠키 삭제 | 공개 |
 | POST | `/auth/password-reset/request` | 비밀번호 복구 메일 요청 | 공개 |
 | POST | `/auth/password-reset/confirm` | reset token으로 비밀번호 변경 | 공개 |
 
@@ -157,15 +157,9 @@ MVP API는 화면에서 필요한 데이터를 서버가 조합해서 내려주�
 | 필드 | 필수 | 설명 |
 | --- | --- | --- |
 | `poptomoId` | Yes | 로그인 식별자 |
-| `password` | Yes | 평문 비밀번호. 서버에서만 검증하고 저장/로그에 남기지 않음 |
+| `password` | Yes | 64자 소문자 16진수 문자열. 서버에서 검증하고 저장/로그에 남기지 않음 |
 
-`POST /auth/login` 응답 `data`:
-
-| 필드 | 설명 |
-| --- | --- |
-| `expiresIn` | 초 단위 만료 시간 |
-| `role` | `USER`, `ADMIN`, `BOT` |
-| `user` | 로그인한 유저의 최소 프로필. 선택 |
+`POST /auth/login`의 성공 응답 `data`는 `null`입니다. access token은 응답 본문에 포함하지 않습니다.
 
 로그인 성공 시 서버는 JWT access token을 JSON body로 내려주지 않고, `Set-Cookie` header로 `HttpOnly` cookie를 발급합니다.
 
@@ -175,9 +169,112 @@ MVP API는 화면에서 필요한 데이터를 서버가 조합해서 내려주�
 | --- | --- |
 | 이름 | `access_token` |
 | `HttpOnly` | `true`. 프론트 JavaScript가 token 원문을 읽을 수 없게 함 |
-| `Secure` | `true`. HTTPS에서만 전송 |
-| `SameSite` | 같은 site 배포면 `Lax`, 프론트/백엔드가 다른 site면 `None` |
+| `Secure` | HTTPS에서는 `true`. 임시 HTTP dev에서는 `AUTH_COOKIE_SECURE=false` |
+| `SameSite` | `Lax` |
 | `Path` | `/` |
+
+프론트엔드는 로그인 이후의 세션 요청에도 `credentials: "include"`를 사용해야 합니다.
+
+```javascript
+await fetch(`${API_BASE}/api/v1/auth/session`, {
+  credentials: "include"
+});
+```
+
+인증 흐름은 로그인 → 세션 확인 → 로그아웃 순서입니다.
+
+```bash
+API_BASE=http://161.33.165.110
+COOKIE_JAR=./popngg-cookie.txt
+LOGIN_PASSWORD='<64-char-lowercase-hex-password>'
+
+curl -i -c "$COOKIE_JAR" \
+  -H 'Content-Type: application/json' \
+  -d "{\"poptomoId\":\"1234-5678-9012\",\"password\":\"$LOGIN_PASSWORD\"}" \
+  "$API_BASE/api/v1/auth/login"
+
+curl -i -b "$COOKIE_JAR" "$API_BASE/api/v1/auth/session"
+
+curl -i -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
+  -X POST "$API_BASE/api/v1/auth/logout"
+```
+
+로그인과 로그아웃 성공 응답:
+
+```json
+{
+  "code": "SUCCESS",
+  "message": "SUCCESS",
+  "data": null
+}
+```
+
+인증된 세션 응답:
+
+```json
+{
+  "code": "SUCCESS",
+  "message": "SUCCESS",
+  "data": {
+    "poptomoId": "1234-5678-9012",
+    "userName": "popper",
+    "avatarUrl": null
+  }
+}
+```
+
+비인증 세션도 HTTP 200이며 `data`가 `null`입니다.
+
+```json
+{
+  "code": "SUCCESS",
+  "message": "SUCCESS",
+  "data": null
+}
+```
+
+로그아웃은 `access_token` 쿠키를 `Max-Age=0`, `Path=/`, `HttpOnly`, `SameSite=Lax`로 만료합니다. HTTPS에서는 `Secure`도 포함합니다.
+
+### 공통 페이지네이션
+
+`GET /songs`와 `GET /users/rankings`는 다음 `Page<T>`를 공통 `SuccessResponse.data`로 반환합니다. 요청의 `page`는 기존과 같이 0부터 시작합니다.
+
+```typescript
+interface Page<T> {
+  items: T[];
+  totalItems: number;
+  totalPages: number;
+  hasPrev: boolean;
+  hasNext: boolean;
+}
+```
+
+```json
+{
+  "code": "SUCCESS",
+  "message": "SUCCESS",
+  "data": {
+    "items": [],
+    "totalItems": 0,
+    "totalPages": 0,
+    "hasPrev": false,
+    "hasNext": false
+  }
+}
+```
+
+프론트엔드 필드 매핑:
+
+| 기존 필드 | 신규 필드 | 변경 내용 |
+| --- | --- | --- |
+| `content` (`GET /songs`) | `items` | 목록 필드명 변경 |
+| `users` (`GET /users/rankings`) | `items` | 목록 필드명 변경 |
+| `totalElements` | `totalItems` | 전체 항목 수 필드명 변경 |
+| `page` | 제거 | 요청에 사용한 0-based `page`를 프론트 상태에서 유지 |
+| `size` | 제거 | 요청에 사용한 `size`를 프론트 상태에서 유지 |
+| 없음 | `totalPages` | 전체 페이지 수 |
+| 없음 | `hasPrev` | 이전 페이지 존재 여부 |
+| 없음 | `hasNext` | 다음 페이지 존재 여부 |
 | `Max-Age` | access token 만료 시간과 동일 |
 
 프론트는 인증 요청에 credential을 포함합니다. 예: `fetch(..., { credentials: "include" })`.
@@ -651,7 +748,8 @@ API 응답은 프론트가 구분할 수 있도록 각 플레이데이터에 다
 | API | 권한 |
 | --- | --- |
 | `POST /auth/login` | 공개 |
-| `POST /auth/logout` | 로그인 필요 |
+| `GET /auth/session` | 공개 |
+| `POST /auth/logout` | 공개 |
 | `POST /auth/password-reset/*` | 공개 |
 | `PATCH /users/{poptomoId}` | 본인 또는 관리자 |
 | `PATCH /users/me/password` | 로그인 필요 |
@@ -662,4 +760,4 @@ API 응답은 프론트가 구분할 수 있도록 각 플레이데이터에 다
 | `POST /users/me/image` | 로그인 필요 |
 | `POST /playdata/imports` | 로그인 필요 또는 갱신 토큰 필요 |
 
-`GET /auth/check`는 관리자 화면이 필요하면 유지합니다. 단순 권한 확인만 필요하면 서버가 쿠키의 JWT claim을 검증해 대체할 수 있습니다.
+현재 로그인 상태는 `GET /auth/session`으로 확인합니다.
