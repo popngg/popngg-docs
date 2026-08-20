@@ -201,6 +201,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ConstantsResponse"
 
+  /charts:
+    get:
+      tags:
+        - Songs
+      summary: 프런트용 곡 목록/검색
+      operationId: getCharts
+      parameters:
+        - $ref: "#/components/parameters/SearchQuery"
+        - $ref: "#/components/parameters/Version"
+        - $ref: "#/components/parameters/ChartVersion"
+        - $ref: "#/components/parameters/Level"
+        - $ref: "#/components/parameters/DifficultyCodeQuery"
+        - $ref: "#/components/parameters/IsUpper"
+        - $ref: "#/components/parameters/HasStrictGauge"
+        - $ref: "#/components/parameters/HasStrictJudgement"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Size"
+      responses:
+        "200":
+          description: 곡 단위 채보 목록
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FrontendChartListResponse"
+
   /songs:
     post:
       tags:
@@ -228,62 +253,13 @@ paths:
         "403":
           $ref: "#/components/responses/Forbidden"
 
+  /charts/{songId}:
     get:
       tags:
         - Songs
-      summary: 모든 GroupChart 정보
-      operationId: getAllGroupedCharts
-      parameters:
-        - $ref: "#/components/parameters/Keyword"
-        - $ref: "#/components/parameters/Version"
-        - $ref: "#/components/parameters/ChartVersion"
-        - $ref: "#/components/parameters/Level"
-        - $ref: "#/components/parameters/DifficultyCodeQuery"
-        - $ref: "#/components/parameters/IsUpper"
-        - $ref: "#/components/parameters/HasStrictGauge"
-        - $ref: "#/components/parameters/HasStrictJudgement"
-        - $ref: "#/components/parameters/Page"
-        - $ref: "#/components/parameters/Size"
-      responses:
-        "200":
-          description: 곡 단위 그룹 차트 목록
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GroupedChartListResponse"
-
-  /songs/recent:
-    get:
-      tags:
-        - Songs
-      summary: 최신 차트
-      description: 메인페이지 최신 추가 곡 목록입니다.
-      operationId: getRecentCharts
-      parameters:
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 50
-            default: 10
-        - $ref: "#/components/parameters/ChartVersion"
-        - $ref: "#/components/parameters/IsUpper"
-      responses:
-        "200":
-          description: 최신 그룹 차트 목록
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/GroupedChartListResponse"
-
-  /songs/{songId}:
-    get:
-      tags:
-        - Songs
-      summary: 특정 노래 GroupChart 정보
-      description: songHash alias로 조회합니다. 응답의 songId를 이후 변경/이미지/히스토리 API 기준으로 사용합니다.
-      operationId: getGroupedChart
+      summary: 프런트용 곡 상세
+      description: 목록 요소와 같은 평평한 구조이며 삭제된 채보는 charts에서 제외합니다. 상세 URL과 화면 key에는 songId를 사용합니다.
+      operationId: getChartBySongId
       parameters:
         - $ref: "#/components/parameters/SongId"
       responses:
@@ -292,26 +268,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/GroupedChartResponse"
-        "404":
-          $ref: "#/components/responses/NotFound"
-
-  /charts/{chartId}:
-    get:
-      tags:
-        - Charts
-      summary: 특정 채보 정보
-      description: songHash alias로 조회합니다. 내부 참조와 변경 API는 응답의 songId/chartId를 우선 사용합니다.
-      operationId: getChart
-      parameters:
-        - $ref: "#/components/parameters/ChartId"
-      responses:
-        "200":
-          description: 채보 상세
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChartResponse"
+                $ref: "#/components/schemas/FrontendChartResponse"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -851,10 +808,11 @@ components:
       required: true
       schema:
         type: string
-        minLength: 32
-        maxLength: 32
+        minLength: 64
+        maxLength: 64
+        pattern: "^[0-9a-f]{64}$"
       description: 변경될 수 있는 외부 조회 alias입니다. 내부 참조나 변경 API 대상 식별자로 사용하지 않습니다.
-      example: "2302440c63cbe103703f3de51ac205da"
+      example: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     SongId:
       name: songId
       in: path
@@ -885,8 +843,15 @@ components:
       required: true
       schema:
         type: string
-        minLength: 32
-        maxLength: 32
+        minLength: 64
+        maxLength: 64
+        pattern: "^[0-9a-f]{64}$"
+    SearchQuery:
+      name: q
+      in: query
+      schema:
+        type: string
+      description: 곡명, 장르명, 아티스트, 검색 태그 검색어
     PoptomoId:
       name: poptomoId
       in: path
@@ -990,7 +955,7 @@ components:
         type: integer
         minimum: 1
         maximum: 100
-        default: 50
+        default: 20
 
   responses:
     BadRequest:
@@ -1231,6 +1196,10 @@ components:
         - version
         - charts
       properties:
+        songHash:
+          type: string
+          deprecated: true
+          description: 입력해도 곡 생성에는 사용하지 않습니다. 백엔드가 메타데이터로 SHA-256을 생성합니다.
         genreName:
           type: string
         songName:
@@ -1336,6 +1305,95 @@ components:
                   type: boolean
                 searchIndexRebuildRequired:
                   type: boolean
+
+    FrontendChartListResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                items:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/FrontendChart"
+                totalItems:
+                  type: integer
+                  format: int64
+                totalPages:
+                  type: integer
+                hasPrev:
+                  type: boolean
+                hasNext:
+                  type: boolean
+    FrontendChartResponse:
+      allOf:
+        - $ref: "#/components/schemas/SuccessResponse"
+        - type: object
+          properties:
+            data:
+              $ref: "#/components/schemas/FrontendChart"
+    FrontendChart:
+      type: object
+      required:
+        - songId
+        - songHash
+        - genreName
+        - songName
+        - artistName
+        - version
+        - jacketUrl
+        - isUpper
+        - charts
+      properties:
+        songId:
+          type: integer
+          format: int64
+        songHash:
+          type: string
+          minLength: 64
+          maxLength: 64
+          pattern: "^[0-9a-f]{64}$"
+          description: 백엔드가 곡 메타데이터로 생성한 SHA-256 외부 alias입니다.
+        genreName:
+          type: string
+        songName:
+          type: string
+        artistName:
+          type: string
+        version:
+          type: integer
+          description: 곡의 최초 수록 버전입니다.
+        jacketUrl:
+          type: string
+        isUpper:
+          type: boolean
+        charts:
+          type: array
+          description: 상세 응답에서는 삭제된 채보를 제외합니다.
+          items:
+            $ref: "#/components/schemas/FrontendChartSummary"
+    FrontendChartSummary:
+      type: object
+      properties:
+        chartId:
+          type: integer
+          format: int64
+        difficulty:
+          type: integer
+          minimum: 1
+          maximum: 4
+        level:
+          type: integer
+          minimum: 1
+          maximum: 50
+        chartVersion:
+          type: integer
+        hasStrictJudgement:
+          type: boolean
+        hasStrictGauge:
+          type: boolean
 
     GroupedChartListResponse:
       allOf:

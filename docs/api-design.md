@@ -58,10 +58,8 @@ MVP API는 OpenAPI 3.0 문서로 관리하고, MkDocs에서는 Redoc 페이지�
 | 공개 | Method | Path | 설명 | MVP 판단 |
 | --- | --- | --- | --- | --- |
 | No | POST | `/songs` | 곡/채보 등록 | 포함. 관리자 전용 |
-| Yes | GET | `/songs` | 곡 목록/검색 | 포함 |
-| Yes | GET | `/songs/recent` | 최신 추가 곡/채보 | 포함 |
-| Yes | GET | `/songs/{songId}` | 특정 곡 GroupChart 정보 | 포함 |
-| Yes | GET | `/charts/{chartId}` | 특정 채보 정보 | 포함 |
+| Yes | GET | `/charts` | 프런트용 곡 목록/검색 | 포함 |
+| Yes | GET | `/charts/{songId}` | 프런트용 곡 상세 | 포함 |
 | Yes | GET | `/charts/{chartId}/summary` | 차트 상세 화면 aggregation | 포함 |
 | Yes | GET | `/charts/{chartId}/rankings` | 곡별 랭킹 | 포함 |
 
@@ -110,9 +108,7 @@ MVP API는 OpenAPI 3.0 문서로 관리하고, MkDocs에서는 Redoc 페이지�
 | `GET /playdata/chart` | 차트 상세 aggregation + 랭킹 | `GET /charts/{chartId}/summary`, `GET /charts/{chartId}/rankings` |
 | `POST /vs` | 여러 유저 비교 | `GET /playdata/compare` |
 | `GET /history/{songHash}/{poptomoId}` | 특정 채보 히스토리 | `GET /users/{poptomoId}/playdata/charts/{chartId}/history` |
-| `GET /charts`, `GET /charts/{level}` | 곡/채보 목록 조회 | `GET /songs` |
-| `GET /charts/recent` | 최신 곡/채보 | `GET /songs/recent` |
-| `GET /chart/{songHash}/{difficulty}` | 특정 채보 조회 | `GET /charts/{chartId}` |
+| `GET /charts`, `GET /charts/{level}` | 곡/채보 목록 조회 | `GET /charts` |
 | `POST /admin/chart` | 곡/채보 등록 | `POST /songs` |
 | `POST /jacket/upload/{songHash}` | 자켓 업로드 | `POST /songs/{songId}/jacket` |
 | `POST /profile` | 프로필 이미지 업로드 | `POST /users/me/image` |
@@ -237,7 +233,7 @@ curl -i -b "$COOKIE_JAR" -c "$COOKIE_JAR" \
 
 ### 공통 페이지네이션
 
-`GET /songs`와 `GET /users/rankings`는 다음 `Page<T>`를 공통 `SuccessResponse.data`로 반환합니다. 요청의 `page`는 기존과 같이 0부터 시작합니다.
+`GET /charts`와 `GET /users/rankings`는 다음 `Page<T>`를 공통 `SuccessResponse.data`로 반환합니다. 요청의 `page`는 기존과 같이 0부터 시작합니다.
 
 ```typescript
 interface Page<T> {
@@ -267,7 +263,7 @@ interface Page<T> {
 
 | 기존 필드 | 신규 필드 | 변경 내용 |
 | --- | --- | --- |
-| `content` (`GET /songs`) | `items` | 목록 필드명 변경 |
+| `content` (`GET /charts`) | `items` | 목록 필드명 변경 |
 | `users` (`GET /users/rankings`) | `items` | 목록 필드명 변경 |
 | `totalElements` | `totalItems` | 전체 항목 수 필드명 변경 |
 | `page` | 제거 | 요청에 사용한 0-based `page`를 프론트 상태에서 유지 |
@@ -304,18 +300,16 @@ interface Page<T> {
 | Method | Path | 설명 | 권한 |
 | --- | --- | --- | --- |
 | POST | `/songs` | 곡/채보 등록 또는 업로드 | 관리자 |
-| GET | `/songs` | 곡 목록/검색 | 공개 |
-| GET | `/songs/recent` | 최신 추가 곡/채보 | 공개 |
-| GET | `/songs/{songId}` | 곡 단위 상세 | 공개 |
-| GET | `/charts/{chartId}` | 특정 채보 상세 | 공개 |
+| GET | `/charts` | 곡 목록/검색 | 공개 |
+| GET | `/charts/{songId}` | 곡 단위 상세 | 공개 |
 | GET | `/charts/{chartId}/summary` | 차트 상세 화면 aggregation | 공개 |
 | GET | `/charts/{chartId}/rankings` | 차트 랭킹 전용 조회 | 공개 |
 
-`GET /songs` query:
+`GET /charts` query:
 
 | 파라미터 | 설명 |
 | --- | --- |
-| `keyword` | 곡명, 장르명, 아티스트, 검색 태그/별칭 검색어 |
+| `q` | 곡명, 장르명, 아티스트, 검색 태그/별칭 검색어 |
 | `version` | 원곡 수록 버전 필터 |
 | `chartVersion` | 채보 등장 버전 필터. Upper 신곡 필터에는 이 값을 사용 |
 | `level` | 레벨 필터 |
@@ -323,11 +317,14 @@ interface Page<T> {
 | `isUpper` | Upper 채보 포함/필터 |
 | `hasStrictGauge` | 짠게이지 채보 필터 |
 | `hasStrictJudgement` | 짠판정 채보 필터 |
-| `page`, `size` | 페이지네이션 |
+| `page` | 0부터 시작하는 페이지 번호 |
+| `size` | 페이지 크기. 1~100 |
 
-`GET /songs` 구현 주의:
+`GET /charts` 구현 주의:
 
-- 기본 응답은 `GroupedChart` 목록입니다.
+- 목록과 상세의 `data`는 `songId`, `songHash`, 곡 메타데이터, `isUpper`, `charts`가 같은 평평한 곡 구조를 사용합니다.
+- 상세 응답에 `song` 객체를 중첩하지 않습니다.
+- 상세의 `charts`에서는 삭제된 채보를 제외합니다.
 - 검색은 `songs`에서 후보를 줄인 뒤 `charts`를 붙입니다.
 - 한국어 별칭이나 줄임말은 `song_search_tags`를 통해 검색합니다. 예: `moonchild`를 `문차일드`로 검색.
 - 모든 곡 + 모든 차트 + 플레이데이터 집계를 한 번에 join하지 않습니다.
@@ -343,6 +340,8 @@ interface Page<T> {
 | `version` | 원곡 또는 곡 그룹 최초 수록 버전 |
 | `jacketUrl` | 자켓 URL/key |
 | `charts[]` | 난이도별 채보 |
+
+요청에 `songHash`가 있어도 생성에는 사용하지 않습니다. 서버가 장르명, 곡명, 아티스트, 최초 수록 버전을 정규화해 64자리 SHA-256 해시를 생성합니다.
 
 `charts[]`:
 
@@ -465,7 +464,7 @@ MVP 응답은 업로드된 이미지 URL/key만 반환합니다. 이미지 조�
 
 ### 검색/필터
 
-초기에는 `GET /songs`에 query parameter를 붙여 처리합니다.
+초기에는 `GET /charts`에 query parameter를 붙여 처리합니다.
 
 후속 분리 후보:
 
@@ -646,15 +645,14 @@ POST /auth/login
 ```
 
 ```text
-GET /songs/{songId}
-  path songHash
-    -> FindGroupChartQuery
-    -> FindGroupChartUseCase
-    -> GroupChartView
-  GroupChartResponse
+GET /charts/{songId}
+  path songId
+    -> FindSongDetailUseCase
+    -> SongDetailView
+  FrontendChartResponse
 ```
 
-`songHash` 기반 조회는 외부 URL 호환을 위한 alias 조회입니다. 응답에는 반드시 `songId`와 `chartId`를 포함하고, 이후 변경/이미지/히스토리 API는 내부 id를 기준으로 호출하게 합니다.
+곡 상세 URL과 React key에는 `songId`를 사용합니다. `songHash`는 외부 alias나 화면 표시 용도로만 사용하고 내부 영속 참조 기준으로 사용하지 않습니다.
 
 규칙:
 
@@ -665,14 +663,14 @@ GET /songs/{songId}
 - API response는 프론트 표시를 위해 label, sortOrder, displayName을 포함할 수 있습니다.
 - application result/view는 특정 HTTP status나 JSON 필드명에 묶이지 않게 설계합니다.
 
-## GroupChart 응답
+## 프런트 곡 응답
 
-`song`과 `chart`는 DB에서 분리하지만, API에서는 프론트가 곡 단위로 렌더링하기 쉽게 GroupChart를 제공합니다.
+`GET /charts`의 `data.items[]`와 `GET /charts/{songId}`의 `data`는 같은 평평한 구조입니다. 상세 응답도 `{ "song": {}, "charts": [] }`로 중첩하지 않습니다.
 
 ```json
 {
-  "songId": 1001,
-  "songHash": "2302440c63cbe103703f3de51ac205da",
+  "songId": 1,
+  "songHash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "genreName": "Genre",
   "songName": "Song",
   "artistName": "Artist",
@@ -682,17 +680,33 @@ GET /songs/{songId}
   "charts": [
     {
       "chartId": 1,
-      "difficulty": { "code": 4, "label": "EX", "shortLabel": "EX", "sortOrder": 4 },
-      "level": 49,
+      "difficulty": 4,
+      "level": 48,
       "chartVersion": 29,
-      "isUpper": true,
       "hasStrictJudgement": false,
-      "hasStrictGauge": true,
-      "isDeleted": false
+      "hasStrictGauge": false
     }
   ]
 }
 ```
+
+목록 envelope 예시:
+
+```json
+{
+  "code": "SUCCESS",
+  "message": "SUCCESS",
+  "data": {
+    "items": [],
+    "totalItems": 0,
+    "totalPages": 0,
+    "hasPrev": false,
+    "hasNext": false
+  }
+}
+```
+
+상세의 `charts` 배열에서는 삭제된 채보를 제외합니다.
 
 ## 플레이데이터 정책
 

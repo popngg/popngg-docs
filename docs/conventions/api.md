@@ -135,7 +135,7 @@ CSRF 기준:
 ## Pagination과 Limit
 
 - 무제한 목록 응답은 만들지 않습니다.
-- `GET /api/v1/songs`, `GET /api/v1/users/rankings`의 응답은 `items`, `totalItems`, `totalPages`, `hasPrev`, `hasNext`를 사용합니다.
+- `GET /api/v1/charts`, `GET /api/v1/users/rankings`의 응답은 `items`, `totalItems`, `totalPages`, `hasPrev`, `hasNext`를 사용합니다.
 - 페이지 응답에는 `page`, `size`를 넣지 않습니다. 요청의 `page`는 0부터 시작합니다.
 - 단순 top N 검색은 `limit`을 사용합니다.
 - 정렬 가능한 목록은 cursor pagination을 우선 검토합니다.
