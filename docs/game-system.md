@@ -70,7 +70,35 @@ High☆Cheers 기준으로 난이도 표기는 `L / N / H / EX`를 우선 지원
 
 ## 메달
 
-신규 메달 `어시이지`를 추가합니다.
+메달 코드표는 다음 12종으로 확정합니다.
+
+| 코드 | 명칭 | 조건 |
+| ---: | --- | --- |
+| 1 | `GOLD_STAR` | GOOD 0, BAD 0으로 클리어 |
+| 2 | `SILVER_STAR` | BAD 0, GOOD 1~5로 클리어 |
+| 3 | `SILVER_DIAMOND` | BAD 0, GOOD 6~20으로 클리어 |
+| 4 | `SILVER_CIRCLE` | BAD 0, GOOD 21 이상으로 클리어 |
+| 5 | `BRONZE_STAR` | BAD 1~5로 클리어 |
+| 6 | `BRONZE_DIAMOND` | BAD 6~20으로 클리어 |
+| 7 | `BRONZE_CIRCLE` | BAD 21 이상으로 클리어 |
+| 8 | `EASY_CLEAR` | EASY 게이지로 클리어 |
+| 9 | `BLACK_STAR` | 그루브 게이지 15~16칸으로 종료 |
+| 10 | `BLACK_DIAMOND` | 그루브 게이지 12~14칸으로 종료 |
+| 11 | `BLACK_CIRCLE` | 그루브 게이지 11칸 이하로 종료 |
+| 12 | `LONGOFF_CLEAR` | LONG POP을 OFF하고 롱 팝 채보를 클리어 |
+
+코드 숫자는 저장 및 API 전송용 식별자일 뿐 우선순위가 아닙니다. 숫자를 직접 비교해 정렬하거나 우열을 판단하지 않고 `MedalPolicy.sortOrder`를 사용합니다.
+
+팝클래스 메달 보너스 분류는 다음과 같습니다.
+
+| 분류 | 메달 코드 | 보너스 |
+| --- | --- | --- |
+| PERFECT | 1 (`GOLD_STAR`) | PERFECT 보너스 |
+| FULL COMBO | 2~4 (`SILVER_STAR`~`SILVER_CIRCLE`) | FULL COMBO 보너스 |
+| CLEAR | 5~7 (`BRONZE_STAR`~`BRONZE_CIRCLE`) | CLEAR 보너스 |
+| EASY CLEAR | 8 (`EASY_CLEAR`) | EASY CLEAR 보너스 |
+| 실패 | 9~11 (`BLACK_STAR`~`BLACK_CIRCLE`) | 클리어 보너스 없음 |
+| LONGOFF CLEAR | 12 (`LONGOFF_CLEAR`) | LONGOFF CLEAR 분류 |
 
 ### 구현 메모
 
@@ -96,7 +124,7 @@ LONG POP OFF 여부는 클리어 메달로 파악할 수 있습니다. LONG POP 
 - 서버는 LONG POP ON/OFF 상태를 추론해 점수나 메달을 보정하지 않습니다.
 - 갱신 원천 데이터의 현재 버전 `score`, `rank`, `medal`을 저장합니다.
 - 검증된 범위에서는 “더 높은 score 유지 + 이후 플레이 상태를 반영한 medal 변경”이 가능하다고 봅니다.
-- 팝클 계산은 현재 버전 베스트 row의 score/medal을 기준으로 하되, LONG POP ON/OFF의 정확한 팝클 영향은 추가 실험으로 확정합니다.
+- 팝클 계산은 현재 버전 베스트 row의 score/medal을 기준으로 하며, `LONGOFF_CLEAR`는 별도 보너스 분류를 사용합니다.
 
 ## 버전 베스트와 역대 베스트
 

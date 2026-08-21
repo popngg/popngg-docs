@@ -517,7 +517,7 @@ new key:    jackets/{newSongHash}.png
 - `rank_code`는 score로 계산하지 않고 원천에서 받은 값을 저장합니다.
 - `medal_code`도 원천에서 받은 값을 저장합니다.
 - 서버는 LONG POP ON/OFF를 임의로 추론해 보정하지 않습니다.
-- popclass가 “유지된 최고 score + 최신 medal” 조합에 어떻게 반응하는지는 추가 실험으로 확정합니다.
+- popclass 메달 보너스는 코드 1 PERFECT, 2~4 FULL COMBO, 5~7 CLEAR, 8 EASY CLEAR, 9~11 실패(클리어 보너스 없음), 12 LONGOFF CLEAR 분류를 적용합니다.
 
 ### 확인 기준
 

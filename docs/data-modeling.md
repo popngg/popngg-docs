@@ -271,11 +271,11 @@ High☆Cheers 참고 구간:
 | `short_label` | 짧은 표시명 |
 | `sort_order` | 정렬 순서 |
 
-신규 메달 `어시이지`를 추가합니다.
+메달은 `GOLD_STAR`부터 `LONGOFF_CLEAR`까지 확정된 12종을 사용합니다. 코드 숫자는 저장 및 API 전송용 식별자이며 우선순위가 아니므로, 정렬과 우열 비교에는 `MedalPolicy.sortOrder`를 사용합니다.
 
 ## LONG POP ON/OFF와 팝클 검증
 
-LONG POP OFF 여부는 클리어 메달로 파악할 수 있습니다. 예를 들어 LONG POP OFF 플레이는 어시스트 클리어 계열 메달로 남을 수 있습니다.
+LONG POP OFF 여부는 클리어 메달로 파악할 수 있습니다. LONG POP을 OFF하고 롱 팝 채보를 클리어하면 코드 12 `LONGOFF_CLEAR`로 남습니다.
 
 다음 사례는 실험으로 확인되었습니다.
 
@@ -292,7 +292,7 @@ LONG POP OFF 여부는 클리어 메달로 파악할 수 있습니다. 예를 �
 - 팝클은 현재 버전 `version_score`, `medal_code`, chart level로 계산합니다.
 - LONG POP ON/OFF 관련 원천값이 별도로 수집 가능하면 `playdata_history`에 raw value를 남기는 방안을 검토합니다.
 - 검증 완료 전에는 서버가 LONG POP ON/OFF 상태를 추론해 score나 medal을 수정하지 않습니다.
-- 다만 popclass가 “유지된 최고 score + 변경된 medal” 조합에 어떻게 반응하는지는 추가 실험으로 확정합니다.
+- popclass 메달 보너스는 코드 1 PERFECT, 2~4 FULL COMBO, 5~7 CLEAR, 8 EASY CLEAR, 9~11 실패(클리어 보너스 없음), 12 LONGOFF CLEAR로 분류합니다.
 
 ## FK 제거 정책
 

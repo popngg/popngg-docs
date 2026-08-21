@@ -63,20 +63,20 @@ High☆Cheers 신규 요소 자료에 따르면 `EASY` 표기가 `LIGHT`로 변�
 - `songs.event_name`, `songs.unlock_condition`, `songs.source_category` 같은 확장 필드가 필요할 수 있습니다.
 - MVP에서는 `created_at`으로 최신 차트를 대체하되, 크롤링 데이터에 배포일이 있으면 별도 컬럼으로 승격하는 것이 좋습니다.
 
-### LONG POP OFF와 어시스트 클리어
+### LONG POP OFF와 LONGOFF CLEAR
 
-High☆Cheers 신규 요소 자료는 LONG POP을 OFF로 플레이하면 클리어 메달이 `アシストクリア`가 된다고 설명합니다.
+High☆Cheers의 확정 코드표에서는 LONG POP을 OFF하고 롱 팝 채보를 클리어한 상태를 코드 12 `LONGOFF_CLEAR`로 표현합니다.
 
 프로젝트 영향:
 
 - LONG POP OFF 여부는 클리어 메달로 파악할 수 있습니다.
-- 신규 메달 `어시이지/アシストクリア`는 단순 label 추가가 아니라 플레이 옵션에 의해 발생하는 clear 상태입니다.
-- `medal_code` mapping에서 `assist clear`를 별도 상태로 둬야 합니다.
+- `LONGOFF_CLEAR`는 단순 label 추가가 아니라 플레이 옵션에 의해 발생하는 clear 상태입니다.
+- `medal_code` mapping에서 `LONGOFF_CLEAR`를 별도 상태로 둡니다.
 - 갱신/크롤링 입력은 메달 원천값을 그대로 저장해야 합니다.
 - 랭크와 마찬가지로 메달도 서버가 임의로 재계산하지 않는 편이 안전합니다.
 - 실험 결과 LONG POP OFF로 `95000`을 기록한 뒤 LONG POP ON으로 `90000`을 기록하면, 점수는 더 높은 `95000`이 유지되고 메달만 LONG POP ON 기준으로 바뀔 수 있습니다.
 - 따라서 LONG POP ON/OFF에서는 score와 medal이 항상 같은 플레이의 결과로 묶여 저장된다고 가정하면 안 됩니다.
-- popclass가 이 조합에 어떻게 반응하는지는 추가 실험이 필요합니다.
+- popclass에서는 `LONGOFF_CLEAR`를 별도 메달 보너스 분류로 취급합니다.
 
 ### 버전 베스트와 역대 베스트
 
@@ -114,7 +114,7 @@ KONAMI 제품 페이지와 공지는 43인치 120Hz 모니터, 터치패널, 경
 
 - MVP 플레이데이터에는 옵션 상세를 저장하지 않습니다.
 - 다만 장기적으로 플레이 옵션이 결과에 영향을 줄 수 있으므로 `play_options` 확장 테이블 또는 JSON 컬럼 후보를 남깁니다.
-- `LONG POP OFF -> assist clear`처럼 결과값에 직접 반영되는 옵션은 medal로 우선 표현합니다.
+- `LONG POP OFF -> LONGOFF_CLEAR`처럼 결과값에 직접 반영되는 옵션은 medal로 우선 표현합니다.
 
 ### 스코어와 랭크
 
@@ -239,7 +239,7 @@ High☆Cheers에서는 장르명이 새로 생기거나 추후 반영될 수 있
 | 우선순위 | 작업 | 문서 위치 |
 | --- | --- | --- |
 | 높음 | OpenAPI 초안과 실제 API naming 일치 | `api-design.md`, `openapi.yaml` |
-| 높음 | medal code table 확정. 어시스트 클리어 위치 포함 | `game-system.md` |
+| 완료 | 12종 medal code table 및 `LONGOFF_CLEAR` 위치 확정 | `game-system.md` |
 | 높음 | songhash 후보를 실제 데이터로 중복 검증 | `data-modeling.md` |
 | 높음 | 곡 메타데이터 변경 API와 old/new songhash mapping 정책 정리 | `api-design.md`, `migration-plan.md` |
 | 높음 | popclass 계산식을 테스트 가능한 정책으로 문서화 | `mvp-db-design.md` |
