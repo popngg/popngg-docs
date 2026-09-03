@@ -75,7 +75,7 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 랭크 추가: `S+`, `AA+`, `A+`, `B+`
 - 랭크 저장 정책: score 기반 계산 금지, 크롤링된 rank 저장
 - 난이도 표시 변경: `EASY` 대신 `LIGHT` 지원
-- 메달 추가: 어시이지
+- 메달 코드표: `GOLD_STAR`부터 `LONGOFF_CLEAR`까지 확정된 12종. 코드 숫자는 식별자이며 정렬/우열 비교는 `MedalPolicy.sortOrder` 사용
 - LONG POP 검증: OFF `95000` 후 ON `90000`이면 점수는 `95000` 유지, 메달만 변경 가능
 - 자켓/곡 표시 변경: 장르명 추가, 어퍼딱지 표시 삭제
 - `chart`에서 `song` 메타데이터 분리 완료

@@ -1152,7 +1152,7 @@ components:
           example: 1
         label:
           type: string
-          example: 어시이지
+          example: GOLD_STAR
         shortLabel:
           type: string
         sortOrder:
@@ -1686,7 +1686,10 @@ components:
           description: 원천 데이터에서 수집한 랭크 코드
         medalCode:
           type: integer
-          description: 원천 데이터에서 수집한 메달 코드
+          minimum: 1
+          maximum: 12
+          example: 12
+          description: 원천 데이터에서 수집한 메달 코드. 12는 LONGOFF_CLEAR입니다. 숫자는 저장 및 전송용 식별자이며 정렬/우열 비교에는 MedalPolicy.sortOrder를 사용합니다.
     PlaydataUpsertResponse:
       allOf:
         - $ref: "#/components/schemas/SuccessResponse"

@@ -1065,7 +1065,7 @@ MVP에서는 게임 코드/표시 정책 테이블 없이 코드의 enum/policy 
 
 ### medal_code
 
-정확한 기존 코드표와 신규 `어시이지`의 위치 확인이 필요합니다. MVP에서는 기존 코드값을 최대한 유지하고, label mapping만 High☆Cheers 기준으로 갱신합니다.
+메달 코드표는 12종으로 확정되었으며 `game-system.md`의 표를 기준으로 구현합니다. 코드 1~12는 각각 `GOLD_STAR`, `SILVER_STAR`, `SILVER_DIAMOND`, `SILVER_CIRCLE`, `BRONZE_STAR`, `BRONZE_DIAMOND`, `BRONZE_CIRCLE`, `EASY_CLEAR`, `BLACK_STAR`, `BLACK_DIAMOND`, `BLACK_CIRCLE`, `LONGOFF_CLEAR`입니다. 코드 숫자는 저장 및 API 전송용 식별자이므로 숫자로 우선순위를 직접 비교하지 않고 `MedalPolicy.sortOrder`를 사용합니다.
 
 ## DDL 초안
 
@@ -1309,7 +1309,7 @@ ALTER TABLE songs
 | 항목 | 보류 이유 | 추후 방향 |
 | --- | --- | --- |
 | `rank_policy` 테이블 | MVP에서는 코드 상수로 충분 | 운영 중 변경이 잦아지면 테이블화 |
-| `medal_policy` 테이블 | 신규 어시이지 코드 확정 필요 | 코드표 확정 후 테이블화 |
+| `medal_policy` 테이블 | MVP에서는 코드 상수로 충분 | 운영 중 변경이 잦아지면 테이블화 |
 | `difficulty_policy` 테이블 | High☆Cheers 기준 4개 라벨이면 충분 | 버전별 표시가 복잡해지면 테이블화 |
 | 검색 태그 기여/승인 UI | MVP 핵심 경로 아님 | 테이블은 두되 유저 기여 플로우는 추후 |
 
@@ -1317,7 +1317,6 @@ ALTER TABLE songs
 
 - 신규 `song_hash` seed에 `artist_name`을 넣을 수 있는가?
 - Upper는 별도 song으로 볼 것인가, 같은 song의 chart 속성으로만 볼 것인가?
-- 기존 medal 코드표와 신규 `어시이지` 코드값은 어디에 배치할 것인가?
 - `song_search_tags.tag_type`과 `source` enum 값을 MVP에서 어디까지 열 것인가?
 - `last_played_at`을 크롤링 원천에서 얻을 수 있는가?
 - 기존 password가 실제 원문인지, 외부 secret인지, 이미 hash인지 확인해야 합니다.

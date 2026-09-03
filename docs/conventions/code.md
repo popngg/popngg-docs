@@ -439,7 +439,7 @@ Popclass
 - rank, medal, difficulty는 내부 code와 표시 label을 분리합니다.
 - LONG POP ON/OFF는 메달로 파악합니다.
 - 실험 기준으로는 더 높은 score를 유지하면서 medal만 바뀔 수 있으므로, score와 medal이 항상 같은 플레이에서 동시에 갱신된다고 가정하지 않습니다.
-- popclass 반영 방식은 추가 실험 전까지 임의 보정하지 않습니다.
+- popclass 메달 보너스는 코드 1 PERFECT, 2~4 FULL COMBO, 5~7 CLEAR, 8 EASY CLEAR, 9~11 실패(클리어 보너스 없음), 12 LONGOFF CLEAR 분류를 적용합니다.
 - 짠판정/짠게이지는 chart metadata로 저장할 수 있게 유지합니다.
 - High☆Cheers처럼 버전별 정책이 바뀌는 값은 하드코딩보다 enum, policy object, constant table을 우선 검토합니다.
 

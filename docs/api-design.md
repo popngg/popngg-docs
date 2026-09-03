@@ -720,6 +720,8 @@ GET /charts/{songId}
 중요:
 
 - 입력에는 `score`, `rankCode`, `medalCode`가 함께 들어와야 합니다.
+- `medalCode`는 확정된 1~12 코드 중 하나입니다. 예를 들어 LONG POP을 OFF하고 롱 팝 채보를 클리어한 입력은 `"medalCode": 12`이며 `LONGOFF_CLEAR`를 뜻합니다.
+- `medalCode` 숫자는 저장 및 API 전송용 식별자입니다. 정렬과 우열 비교에는 숫자 자체가 아니라 `MedalPolicy.sortOrder`를 사용합니다.
 - credit은 High☆Cheers 기준 4종 `normalCredit`, `extraCredit`, `timePlay10Credit`, `timePlay16Credit`로 받습니다.
 - 이전 API의 `battleCredit`, `localCredit`은 신규 API에서 사용하지 않습니다.
 - 서버는 score로 rank를 계산하지 않습니다.
@@ -736,7 +738,7 @@ GET /charts/{songId}
 - LONG POP ON/OFF 상태는 메달로 파악합니다.
 - 실험 결과 LONG POP OFF `95000` 후 LONG POP ON `90000`을 기록하면 점수는 `95000`이 유지되고 메달만 바뀔 수 있습니다.
 - 따라서 서버는 LONG POP ON/OFF를 이유로 score나 medal을 임의 보정하지 않고, 원천에서 보이는 score/rank/medal 조합을 저장합니다.
-- popclass에 이 조합을 어떻게 반영할지는 추가 실험으로 확정합니다.
+- popclass 메달 보너스는 코드 1 PERFECT, 2~4 FULL COMBO, 5~7 CLEAR, 8 EASY CLEAR, 9~11 실패(클리어 보너스 없음), 12 LONGOFF CLEAR로 분류합니다.
 
 ### 현재 상태와 성장 이력
 
