@@ -7,6 +7,9 @@
   </p>
 </section>
 
+!!! warning "설계 초안과 현재 구현"
+    이 섹션의 OpenAPI는 목표 계약과 초안을 포함합니다. 현재 구현된 경로와 범위는 [구현 현황](../implementation-status.md), collector 갱신 계약은 [데이터 갱신 API](../data-renewal-api.md)를 먼저 확인하세요. 실행 중인 서버의 Swagger UI가 가장 최신인 호출 계약입니다.
+
 <div class="doc-grid">
   <a class="doc-card" href="../api-design/">
     <span class="doc-card__eyebrow">Design</span>

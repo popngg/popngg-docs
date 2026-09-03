@@ -54,6 +54,7 @@ extra_javascript:
 
 nav:
   - 홈: index.md
+  - 구현 현황: implementation-status.md
   - 회의해야 할 것:
       - 개요: meetings/index.md
       - 데이터 모델링: meetings/data-modeling.md
@@ -78,9 +79,14 @@ nav:
       - 데이터 모델링: data-modeling.md
       - 마이그레이션 계획: migration-plan.md
       - 의사결정 기록: decisions.md
+  - 개선 사례:
+      - 개요: case-studies/index.md
+      - 사용자 랭킹 API 성능 개선: case-studies/user-ranking-performance.md
   - API:
       - 개요: api/index.md
       - API 설계: api-design.md
+      - 데이터 갱신 API: data-renewal-api.md
+      - 메달 코드: medal-codes.md
       - API Reference: api-reference.md
   - 컨벤션:
       - 개요: conventions/index.md
@@ -92,5 +98,6 @@ nav:
       - Git 컨벤션: conventions/git.md
   - 운영:
       - 운영과 배포: operations.md
+      - Discord 관리자 기능: discord-admin.md
       - MVP 전환 당일 체크리스트: cutover-checklist.md
   - LLM 컨텍스트: llm-context.md

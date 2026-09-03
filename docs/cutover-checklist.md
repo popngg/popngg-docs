@@ -98,7 +98,7 @@ count 차이가 있으면 `HOLD`로 전환합니다.
 
 ## 7. Health check
 
-- [ ] `/actuator/health`가 제한 시간 내 `UP`을 반환했다.
+- [ ] 공개 `/health`가 제한 시간 내 성공 응답을 반환했다. 전체 Actuator health는 내부 관리 포트에서 확인했다.
 - [ ] DB connection pool과 migration 상태가 정상이다.
 - [ ] 예외율, latency, container restart/OOM과 disk 사용량에 이상이 없다.
 

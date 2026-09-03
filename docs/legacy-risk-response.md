@@ -186,7 +186,7 @@ Git push
 - DB 접속 경로와 SSH tunnel은 애플리케이션 코드가 아니라 인프라 레이어에서 다룹니다.
 - container memory limit과 JVM `Xmx`를 함께 설정합니다.
 - 배포 전 DB backup과 rollback image tag를 확인합니다.
-- 배포 후 `/actuator/health`와 주요 API smoke test를 통과해야 성공으로 봅니다.
+- 배포 후 공개 `/health`와 주요 API smoke test를 통과해야 성공으로 봅니다. 전체 Actuator는 내부 관리 포트에서만 확인합니다.
 
 초기 모니터링 필수 지표:
 
