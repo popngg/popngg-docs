@@ -3,19 +3,20 @@
     <span class="eyebrow">popn.gg Refactor Docs</span>
     <h1>popn.gg 리팩토링 문서</h1>
     <p>
-      이 문서는 <code>popngg-old</code>를 참고 자료로 두고, High☆Cheers 이후의 popn.gg를
-      새 프로젝트 기준으로 다시 설계하기 위한 작업 공간입니다. 기획, 데이터 모델, API, 운영,
-      컨벤션을 구현 전에 먼저 합의하는 것을 목표로 합니다.
+      이 문서는 High☆Cheers 기준으로 재구축 중인 popn.gg의 기획, 구현 현황, 데이터 모델,
+      API와 운영 기준을 함께 관리하는 작업 공간입니다. 설계 초안과 실제 백엔드 구현의 차이도
+      명시적으로 기록합니다.
     </p>
     <div class="hero-actions">
       <a class="button button--primary" href="planning/">기획부터 보기</a>
+      <a class="button button--ghost" href="implementation-status/">구현 현황 보기</a>
       <a class="button button--ghost" href="design/">설계 문서 보기</a>
     </div>
   </div>
   <div class="landing-hero__panel">
     <span class="panel-label">Current Focus</span>
-    <strong>문서 우선 리팩토링</strong>
-    <p>레거시 기준을 그대로 계승하지 않고, 현재 운영·배포·게임 정책에 맞춰 다시 결정합니다.</p>
+    <strong>구현과 문서 동기화</strong>
+    <p>Java 21, Spring Boot 3.5, Flyway V8 기반 구현과 설계 문서의 차이를 계속 줄입니다.</p>
   </div>
 </section>
 
@@ -32,18 +33,23 @@
       <strong>프로젝트 개요</strong>
       <p>왜 새로 시작하는지, 레거시는 어디까지 참고할지 확인합니다.</p>
     </a>
-    <a class="path-step" href="planning/service-research/">
+    <a class="path-step" href="implementation-status/">
       <span>02</span>
+      <strong>구현 현황</strong>
+      <p>현재 런타임, 모듈, API, migration과 설계 초안의 차이를 확인합니다.</p>
+    </a>
+    <a class="path-step" href="planning/service-research/">
+      <span>03</span>
       <strong>서비스와 게임 리서치</strong>
       <p>High☆Cheers 변경점과 서비스 정책에 영향을 주는 게임 규칙을 봅니다.</p>
     </a>
     <a class="path-step" href="mvp-db-design/">
-      <span>03</span>
+      <span>04</span>
       <strong>MVP DB 설계</strong>
       <p>song/chart, playdata/history, version best/all-time best 구조를 확인합니다.</p>
     </a>
     <a class="path-step" href="api-design/">
-      <span>04</span>
+      <span>05</span>
       <strong>API 설계</strong>
       <p>프론트 가공을 줄이고 백엔드가 책임질 응답 구조를 확인합니다.</p>
     </a>

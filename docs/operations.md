@@ -1,6 +1,6 @@
 # 운영과 배포
 
-이 문서는 로컬 실행 방법보다 운영 기준을 먼저 설명합니다. 이번 리팩토링의 배포/운영은 레거시 서버 기준이 아니라, Docker, Flyway, Prometheus/Grafana/Loki/Alloy를 전제로 정리합니다.
+이 문서는 로컬 실행 방법보다 운영 기준을 먼저 설명합니다. 현재 Docker, Flyway, Prometheus/Grafana가 구현되어 있으며 Loki/Alloy/Alertmanager는 다음 단계의 운영 설계입니다.
 
 <div class="doc-summary">
   <div class="doc-summary__item">
@@ -35,7 +35,7 @@
 | API | `http://161.33.165.110` |
 | Swagger UI | `http://161.33.165.110/swagger-ui/index.html` |
 | OpenAPI JSON | `http://161.33.165.110/v3/api-docs` |
-| 공개 health check | `GET http://161.33.165.110/actuator/health` |
+| 공개 health check | `GET http://161.33.165.110/health` |
 
 위 주소는 **dev 환경 전용**이며 운영 주소가 아닙니다. 현재 백엔드는 Spring Boot `3.5.16`과 호환되는 `springdoc-openapi 2.8.x`(`2.8.17`)를 사용합니다. 운영에서는 Swagger 공개 범위를 제한하거나 비활성화하고, Actuator 공개 범위도 다시 검토합니다.
 
@@ -93,7 +93,7 @@ Git push
 8. 해당 SHA를 태그로 Docker 이미지를 빌드합니다.
 9. Flyway migration 컨테이너를 실행합니다.
 10. API 컨테이너를 교체합니다.
-11. `/actuator/health`와 songs/rankings smoke test를 실행합니다.
+11. `/health`와 songs/rankings smoke test를 실행합니다.
 
 배포 성공 여부는 GitHub 저장소의 **Repository → Actions → Deploy dev**에서 확인합니다. `deployment image=<repository>:<SHA> status=healthy` 로그까지 출력되어야 완료입니다.
 
@@ -129,7 +129,7 @@ Git push
 | Migration Precheck | schema baseline / dry-run 확인 |
 | Migrate | Flyway migration |
 | Deploy | Docker container 교체 |
-| Health Check | `/actuator/health` 또는 health endpoint 확인 |
+| Health Check | 공개 `/health`, 내부 관리 포트의 Actuator health 확인 |
 | Smoke Test | 주요 API 최소 검증 |
 
 스키마 변경은 기본적으로 애플리케이션 배포 전에 적용할 수 있게 backward-compatible하게 작성합니다. 컬럼 삭제, 의미 변경, 대량 데이터 보정처럼 위험한 변경은 `expand -> deploy -> contract` 단계로 나누고, contract 단계는 별도 승인 후 실행합니다.
@@ -353,7 +353,28 @@ db/migration/
 
 ## 로깅과 모니터링
 
-초기 운영 스택은 `Prometheus + Grafana + Loki + Grafana Alloy`로 확정합니다.
+### 현재 구현
+
+Prometheus와 Grafana는 `deploy/compose.monitoring.yml`의 선택 서비스입니다. 모니터링 컨테이너 실패는 정상 API 배포를 rollback하지 않습니다.
+
+```text
+Spring Boot API :9091/actuator/prometheus (Compose network only)
+  -> Prometheus :9090 (127.0.0.1 bind)
+  -> Grafana :3000 (127.0.0.1 bind)
+  -> Nginx HTTPS -> grafana.popn.gg
+```
+
+- 공개 health endpoint는 `/health`입니다.
+- 전체 Actuator surface와 Prometheus endpoint는 내부 관리 포트 `9091`에만 둡니다.
+- Prometheus는 인증 기능이 없으므로 외부에 공개하지 않고 필요할 때 SSH tunnel을 사용합니다.
+- Grafana는 anonymous access와 signup을 끄고 HTTPS/SameSite Strict cookie를 사용합니다.
+- 기본 dashboard는 request rate/latency/status, JVM, HikariCP 지표를 제공합니다.
+- Prometheus retention은 7일, block 목표 크기는 1GB입니다.
+- metric label에는 사용자·곡·채보·poptomo·trace 식별자를 넣지 않습니다.
+
+### 다음 단계 설계
+
+전체 목표 스택은 `Prometheus + Grafana + Loki + Grafana Alloy + Alertmanager`입니다.
 
 2대 서버 구성:
 

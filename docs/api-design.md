@@ -65,6 +65,9 @@ MVP API는 OpenAPI 3.0 문서로 관리하고, MkDocs에서는 Redoc 페이지�
 
 ### Users
 
+!!! info "현재 계정 설정 API"
+    구현된 본인 설정 경로는 `GET /account/settings`, multipart `PATCH /account/profile`, JSON `PATCH /account/password`입니다. 아래 `/users/me/*` 항목은 초기 목표 계약이므로 호출 코드에서는 현재 Controller 경로를 사용합니다.
+
 | 공개 | Method | Path | 설명 | MVP 판단 |
 | --- | --- | --- | --- | --- |
 | Yes | GET | `/users/{poptomoId}` | 유저 프로필 페이지 정보 | 포함 |
@@ -87,6 +90,8 @@ MVP API는 OpenAPI 3.0 문서로 관리하고, MkDocs에서는 Redoc 페이지�
 | No | POST | `/users/me/image` | 프로필 이미지 업로드 | 포함. 로그인 필요 |
 | No | GET | `/admin/migrations/status` | Flyway migration 상태 확인 | 후보. 배포 로그/DB 확인으로 충분하면 제외 |
 | No | PATCH | `/admin/songs/{songId}` | 곡 메타데이터 보정 | 포함. 관리자 전용 |
+
+Discord 관리자 integration은 `POST /discord/interactions`에서 서명된 요청을 받고 곡 추가·수정·조회와 미등록 곡 처리를 제공합니다. 자세한 운영 계약은 [Discord 관리자 기능](discord-admin.md)을 참고합니다.
 
 ## 레거시 API 계승 매핑
 

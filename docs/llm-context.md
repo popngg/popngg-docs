@@ -2,7 +2,7 @@
 
 이 파일은 LLM이 프로젝트를 빠르게 이해하기 위한 압축 컨텍스트입니다. 코드 수정 전에는 최신 코드와 이 문서를 함께 확인해야 합니다.
 
-레거시 코드는 참고 자료일 뿐이며, 실제 기준은 이 문서와 나머지 설계 문서입니다.
+레거시 코드는 참고 자료일 뿐입니다. 실제 구현 판단은 현재 `popngg` 코드와 migration을 우선하고, 이 문서는 압축된 보조 컨텍스트로 사용합니다.
 
 ## 프로젝트 한 줄 설명
 
@@ -16,19 +16,19 @@ popn.gg는 아케이드 리듬게임 `pop'n music`의 곡, 채보, 플레이데�
 - High☆Cheers에서 `EASY` 난이도명이 `LIGHT`로 바뀐 것으로 관찰됩니다. 내부 code와 표시 label을 분리해야 합니다.
 - 랭크는 서버 내부에서 점수로 계산하지 않습니다. clear 여부에 따라 달라질 수 있으므로 크롤링/갱신 시 원천 데이터의 랭크를 함께 저장합니다.
 
-## 기술 기준
+## 현재 기술 기준
 
-- Java/JDK target: JDK 25 우선 검증, 실패 시 JDK 21 fallback
-- Spring target: Spring Boot 4.x / Spring Framework 7.x 우선 검증
-- Current code baseline: Java 17 / Spring Boot 3.2.4. 기술 baseline 변경 spike 후 build 설정과 문서를 함께 갱신합니다.
+- Java 21
+- Spring Boot 3.5
+- Gradle wrapper 8.13
 - Gradle 멀티모듈
 - MySQL 8.0
 - Spring Security + JWT
 - SpringDoc OpenAPI
 - JPA, Querydsl
 - Docker 기반 배포
-- 로깅/모니터링은 `Prometheus + Grafana + Loki + Grafana Alloy`를 사용합니다.
-- Flyway DB migration. 현재 코드에 의존성이 없다면 스키마 작업 시 추가해야 함
+- Prometheus/Grafana production monitoring 구현. Loki/Alloy/Alertmanager는 다음 단계 설계
+- Flyway DB migration (`V1`~`V10` 적용)
 
 ## 모듈 경계
 
@@ -56,15 +56,20 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - Entity를 API response로 직접 반환
 - Request/Response DTO를 use case 입력/출력으로 재사용
 
-## 현재 관찰된 구조
+## 현재 구현된 구조
 
-- `ChartEntity`는 `chart` 테이블에 곡 메타데이터와 채보 데이터를 함께 저장합니다.
-- `PlaydataEntity`는 `UserEntity`, `ChartEntity`를 `ManyToOne`으로 참조합니다.
-- `UserEntity`는 `"user"` 테이블을 사용하며 `poptomo_id`, `password`, `role` 등을 가집니다.
-- `Rank`, `Medal`은 현재 정수 래퍼 값 객체이고 구체적인 enum 제한은 없습니다.
-- `AuthenticateUserService`에는 해싱 검증 로그인과 평문/기존값 비교용 `loginWithoutHash`가 함께 있습니다.
+- 곡 메타데이터는 `songs`, 난이도별 채보는 `charts`로 분리되어 있습니다.
+- 계정과 공개 프로필은 `users`, `user_profiles`로 분리되어 있습니다.
+- playdata는 현재 버전 점수, 역대 점수, 버전 최고점 제공 여부를 함께 관리합니다.
+- `game_version_transitions`가 버전 전환의 `RESET`/`CARRY_OVER` 정책을 관리합니다.
+- 메달 코드는 High☆Cheers 원천 코드 순서에 맞춰 1~12, 없음은 13을 사용합니다.
+- 로그인/가입은 JWT를 HttpOnly 쿠키로 발급하며 Bearer token도 호환합니다.
+- 운영 스키마는 적용된 Flyway 파일을 수정하지 않고 새 migration을 추가합니다.
+- 계정 설정 API는 프로필/아바타/비밀번호 변경을 제공하고 이미지는 S3에 저장합니다.
+- Discord 관리자 명령은 곡 추가·수정·조회와 미등록 목록 처리를 지원합니다.
+- 갱신 중 미확인 곡은 `unknown_chart_reports`에 곡 단위로 누적하며 불확실한 난이도/UPPER 값은 null로 둡니다.
 
-## 리팩토링에서 바뀌어야 하는 것
+## 구현 및 운영 기준
 
 - 게임 버전 기준: High☆Cheers
 - 랭크 추가: `S+`, `AA+`, `A+`, `B+`
@@ -73,7 +78,7 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 메달 추가: 어시이지
 - LONG POP 검증: OFF `95000` 후 ON `90000`이면 점수는 `95000` 유지, 메달만 변경 가능
 - 자켓/곡 표시 변경: 장르명 추가, 어퍼딱지 표시 삭제
-- `chart`에서 `song` 메타데이터 분리
+- `chart`에서 `song` 메타데이터 분리 완료
 - `songs.version`은 원곡 또는 곡 그룹의 최초 수록 버전, `charts.chart_version`은 난이도별 채보 또는 Upper 채보의 실제 등장 버전입니다.
 - 같은 song이라도 Upper가 나온 버전은 다를 수 있으므로 신곡/구곡 판정과 팝클 bucket 선정은 `charts.chart_version` 기준으로 합니다.
 - 짠게이지는 `charts` metadata로 저장: 노트 수가 1536개를 넘는 채보에서 적용되므로 같은 곡이라도 높은 난이도만 짠게이지일 수 있음
@@ -89,7 +94,7 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 유저 비밀번호: 기존 저장값의 성격이 불명확하므로 일괄 재해싱을 확정하지 않음. 점진 재해싱, legacy 검증 후 업그레이드, 강제 재설정 중 결정 필요
 - 비밀번호 복구: 이메일 기반 복구 기능 포함
 - FK 제거: DB 차원의 cascading 비용이 리턴보다 큼
-- 마이그레이션: DB 구조 변화가 크므로 schema baseline/data transform/cutover 같은 큰 세션 단위로 관리. Flyway는 schema baseline, 대량 데이터 이전은 별도 job/script
+- 마이그레이션: Flyway는 schema baseline과 증분 변경, 레거시 대량 데이터 이전은 별도 `migration/` script로 관리
 - 배포: 배포 파이프라인에서 Docker image를 빌드/배포하고, 운영 마이그레이션은 별도 단계로 분리
 - 운영 서버 구성: 서버 1은 관측 스택(Prometheus, Grafana, Loki, Alertmanager, Alloy), 서버 2는 Spring Boot 애플리케이션, MySQL, Redis, Alloy, node exporter를 둡니다.
 - 로그는 애플리케이션 stdout JSON log를 Alloy가 수집해 Loki로 전송하고, 메트릭은 Spring Boot Actuator/Micrometer의 `/actuator/prometheus`를 Prometheus가 수집합니다.
