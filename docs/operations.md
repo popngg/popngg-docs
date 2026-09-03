@@ -1,6 +1,6 @@
 # 운영과 배포
 
-이 문서는 로컬 실행 방법보다 운영 기준을 먼저 설명합니다. 현재 Docker, Flyway, Prometheus/Grafana가 구현되어 있으며 Loki/Alloy/Alertmanager는 다음 단계의 운영 설계입니다.
+이 문서는 로컬 실행 방법보다 운영 기준을 먼저 설명합니다. 현재 Docker, Flyway, Prometheus/Grafana/Loki/Alloy가 구현되어 있으며 Alertmanager는 다음 단계의 운영 설계입니다.
 
 <div class="doc-summary">
   <div class="doc-summary__item">
@@ -28,28 +28,29 @@
 - `http://localhost:8080/swagger-ui/index.html`
 - `http://localhost:8080/v3/api-docs`
 
-현재 OCI dev 환경:
+현재 서비스 환경:
 
 | 항목 | 값 |
 | --- | --- |
-| API | `http://161.33.165.110` |
-| Swagger UI | `http://161.33.165.110/swagger-ui/index.html` |
-| OpenAPI JSON | `http://161.33.165.110/v3/api-docs` |
-| 공개 health check | `GET http://161.33.165.110/health` |
+| API | `https://api.popn.gg` |
+| Swagger UI | `https://api.popn.gg/swagger-ui/index.html` (관리자 인증 필요) |
+| OpenAPI JSON | `https://api.popn.gg/v3/api-docs` (관리자 인증 필요) |
+| 공개 health check | `GET https://api.popn.gg/health` |
 
-위 주소는 **dev 환경 전용**이며 운영 주소가 아닙니다. 현재 백엔드는 Spring Boot `3.5.16`과 호환되는 `springdoc-openapi 2.8.x`(`2.8.17`)를 사용합니다. 운영에서는 Swagger 공개 범위를 제한하거나 비활성화하고, Actuator 공개 범위도 다시 검토합니다.
+현재 백엔드는 Spring Boot `3.5.16`과 호환되는 `springdoc-openapi 2.8.x`(`2.8.17`)를 사용합니다. Swagger와 OpenAPI JSON에는 HTTP Basic 인증을 적용하고, 전체 Actuator는 내부 관리 포트에서만 제공합니다.
 
-dev 네트워크 구성:
+서비스 네트워크 구성:
 
 ```text
-Internet → OCI Compute Instance:80 → Nginx → 127.0.0.1:8080 Spring API
-                                             └→ Docker 내부 MySQL:3306
+Internet → HTTPS Nginx → 127.0.0.1:8080 Spring API
+                                ├→ Docker 내부 MySQL:3306
+                                └→ Docker 내부 Redis:6379
 ```
 
-- Nginx만 80번 포트에서 요청을 받고 Spring API로 reverse proxy합니다.
+- Nginx가 80/443 포트에서 요청을 받고 HTTPS를 적용해 Spring API로 reverse proxy합니다.
 - Spring API는 호스트의 `127.0.0.1:8080`에만 바인딩합니다.
-- MySQL 3306, Spring 8080, Adminer는 외부에 공개하지 않습니다.
-- OCI 인바운드는 SSH 22, HTTP 80, 향후 HTTPS 443만 허용합니다.
+- MySQL, Redis, Spring 관리 포트와 Adminer는 외부에 공개하지 않습니다.
+- OCI 인바운드는 SSH 22, HTTP 80, HTTPS 443만 허용합니다.
 
 ## 배포 기준
 
@@ -81,26 +82,26 @@ Git push
 
 배포 job은 같은 환경에 대한 동시 배포를 막아야 합니다.
 
-현재 dev 자동 배포는 `main` 브랜치 push(머지 포함)의 CI 성공 후 다음 순서로 실행됩니다.
+현재 자동 배포는 `develop` 브랜치 push의 CI 성공 후 후보 버전을 배포하며 다음 순서로 실행됩니다.
 
 1. Java 21로 빌드합니다.
 2. 전체 테스트를 실행합니다.
 3. JaCoCo 리포트를 생성합니다.
 4. CI 성공 여부를 확인합니다.
 5. GitHub Actions 전용 SSH 키로 OCI dev 서버에 접속합니다.
-6. 서버 저장소의 `main` 브랜치를 fast-forward로 갱신합니다.
-7. 테스트된 커밋 SHA와 서버 `HEAD`가 같은지 검사합니다.
+6. 서버 저장소에서 검증된 `develop` 커밋 SHA를 선택합니다.
+7. 테스트된 커밋 SHA와 배포 대상 revision이 같은지 검사합니다.
 8. 해당 SHA를 태그로 Docker 이미지를 빌드합니다.
 9. Flyway migration 컨테이너를 실행합니다.
 10. API 컨테이너를 교체합니다.
 11. `/health`와 songs/rankings smoke test를 실행합니다.
 
-배포 성공 여부는 GitHub 저장소의 **Repository → Actions → Deploy dev**에서 확인합니다. `deployment image=<repository>:<SHA> status=healthy` 로그까지 출력되어야 완료입니다.
+배포 성공 여부는 GitHub 저장소의 **Repository → Actions → Deploy candidate**에서 확인합니다. `deployment image=<repository>:<version> status=healthy` 로그까지 출력되어야 완료입니다. 후보 배포가 실패하면 안정 버전인 `origin/main`을 다시 빌드·배포하고, 성공하면 `develop → main` 릴리스 PR을 생성하거나 갱신합니다. `main` 병합 자체는 이미 검증된 버전을 안정 기준으로 확정하는 작업이며 서버를 다시 배포하지 않습니다.
 
 자동 배포 안전장치:
 
-- CI가 실패하면 `Deploy dev` job을 실행하지 않습니다.
-- `deploy-dev` concurrency group과 서버의 deployment lock으로 한 번에 하나만 배포합니다.
+- CI가 실패하면 `Deploy candidate` job을 실행하지 않습니다.
+- `deploy-server` concurrency group과 서버의 deployment lock으로 한 번에 하나만 배포합니다.
 - `latest` 태그를 거부하고 테스트된 커밋 SHA를 이미지 태그로 사용합니다.
 - 서버 저장소 갱신에는 읽기 전용 GitHub Deploy Key를 사용합니다.
 - GitHub Actions의 서버 접속 키는 사용자 개인 SSH 키와 분리합니다.
@@ -166,16 +167,16 @@ AUTH_COOKIE_SECURE=true
 
 | 환경 | 값 | 설명 |
 | --- | --- | --- |
-| 현재 IP 기반 HTTP dev | `false` | 임시 HTTP 환경에서만 사용 |
-| HTTPS dev/staging | `true` | HTTPS 전환 즉시 적용 |
+| 로컬 HTTP | `false` | 로컬 개발에서만 사용 |
+| HTTPS staging | `true` | HTTPS 환경에서 적용 |
 | 운영 | `true` | 반드시 `true` |
 
 ## 보안 주의사항
 
 - MySQL 3306, Spring 8080, Adminer를 외부에 공개하지 않습니다.
 - 실제 비밀번호, JWT secret, SSH private key를 문서나 Git commit에 넣지 않습니다.
-- 도메인 연결 후 HTTPS를 적용하고 `AUTH_COOKIE_SECURE=true`로 전환합니다.
-- 운영 전 Swagger와 Actuator의 공개 범위를 재검토합니다.
+- 운영은 HTTPS와 `AUTH_COOKIE_SECURE=true`를 유지합니다.
+- Swagger는 HTTP Basic 인증으로 제한하고 Actuator는 내부 관리 포트에 둡니다.
 
 ## 애플리케이션 자원 격리
 
@@ -336,7 +337,7 @@ Flyway SQL 위치:
 db/migration/
 ```
 
-이 경로는 애플리케이션 실행 classpath 기준입니다. 실제 파일 위치는 Flyway 의존성과 datasource 설정을 어느 모듈이 소유하는지에 맞춰 정합니다. 멀티모듈에서는 `popngg-infra/src/main/resources/db/migration/`, 실행 모듈의 `src/main/resources/db/migration/`, 또는 별도 migration 모듈을 후보로 검토합니다.
+현재 migration은 `popngg-infra/src/main/resources/db/migration/`에 있으며 migration container가 같은 classpath를 사용합니다.
 
 규칙:
 
@@ -355,13 +356,18 @@ db/migration/
 
 ### 현재 구현
 
-Prometheus와 Grafana는 `deploy/compose.monitoring.yml`의 선택 서비스입니다. 모니터링 컨테이너 실패는 정상 API 배포를 rollback하지 않습니다.
+Prometheus, Grafana, Loki와 Alloy는 `deploy/compose.monitoring.yml`의 관측 서비스입니다. 모니터링 컨테이너 실패는 정상 API 배포를 rollback하지 않습니다.
 
 ```text
 Spring Boot API :9091/actuator/prometheus (Compose network only)
   -> Prometheus :9090 (127.0.0.1 bind)
   -> Grafana :3000 (127.0.0.1 bind)
   -> Nginx HTTPS -> grafana.popn.gg
+
+Spring Boot JSON file log
+  -> Alloy
+  -> Loki :3100 (127.0.0.1 bind)
+  -> Grafana Explore
 ```
 
 - 공개 health endpoint는 `/health`입니다.
@@ -370,11 +376,12 @@ Spring Boot API :9091/actuator/prometheus (Compose network only)
 - Grafana는 anonymous access와 signup을 끄고 HTTPS/SameSite Strict cookie를 사용합니다.
 - 기본 dashboard는 request rate/latency/status, JVM, HikariCP 지표를 제공합니다.
 - Prometheus retention은 7일, block 목표 크기는 1GB입니다.
+- Loki는 TSDB와 compactor를 사용해 로그를 7일 보존하고, Alloy의 읽기 위치는 volume에 영속화합니다.
 - metric label에는 사용자·곡·채보·poptomo·trace 식별자를 넣지 않습니다.
 
 ### 다음 단계 설계
 
-전체 목표 스택은 `Prometheus + Grafana + Loki + Grafana Alloy + Alertmanager`입니다.
+다음 목표는 현재 관측 스택에 Alertmanager와 운영 경보 기준을 추가하는 것입니다.
 
 2대 서버 구성:
 

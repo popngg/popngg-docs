@@ -27,8 +27,8 @@ popn.gg는 아케이드 리듬게임 `pop'n music`의 곡, 채보, 플레이데�
 - SpringDoc OpenAPI
 - JPA, Querydsl
 - Docker 기반 배포
-- Prometheus/Grafana production monitoring 구현. Loki/Alloy/Alertmanager는 다음 단계 설계
-- Flyway DB migration (`V1`~`V10` 적용)
+- Prometheus/Grafana/Loki/Alloy production monitoring과 구조화 로그 수집 구현. Alertmanager는 다음 단계 설계
+- Flyway DB migration (`V1`~`V21` 적용)
 
 ## 모듈 경계
 
@@ -68,6 +68,7 @@ Entity <-> Domain/Result/View 변환은 infra adapter 내부에서 수행
 - 계정 설정 API는 프로필/아바타/비밀번호 변경을 제공하고 이미지는 S3에 저장합니다.
 - Discord 관리자 명령은 곡 추가·수정·조회와 미등록 목록 처리를 지원합니다.
 - 갱신 중 미확인 곡은 `unknown_chart_reports`에 곡 단위로 누적하며 불확실한 난이도/UPPER 값은 null로 둡니다.
+- 사용자 목록의 클리어 레벨은 `user_clear_levels`에 사전 집계하고 공개 첫 페이지는 revision 기반 Redis 캐시를 사용합니다. Redis 장애 시 MySQL로 fallback합니다.
 
 ## 구현 및 운영 기준
 

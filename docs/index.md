@@ -16,7 +16,7 @@
   <div class="landing-hero__panel">
     <span class="panel-label">Current Focus</span>
     <strong>구현과 문서 동기화</strong>
-    <p>Java 21, Spring Boot 3.5, Flyway V8 기반 구현과 설계 문서의 차이를 계속 줄입니다.</p>
+    <p>Java 21, Spring Boot 3.5, Flyway V21 기반 구현과 설계 문서의 차이를 계속 줄입니다.</p>
   </div>
 </section>
 

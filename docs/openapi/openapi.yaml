@@ -20,10 +20,8 @@ info:
     MVP 이후 항목은 검색 태그 기여/승인 UI, 관리자 검수 UI, 상세 모니터링,
     Redis 검색 read model과 여러 유저 비교 API입니다.
 servers:
-  - url: http://161.33.165.110/api/v1
-    description: Development only (운영 주소 아님)
   - url: https://api.popn.gg/api/v1
-    description: Production candidate (현재 dev 주소와 구분)
+    description: Production
   - url: http://localhost:8080/api/v1
     description: Local development
 tags:

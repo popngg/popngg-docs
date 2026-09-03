@@ -185,7 +185,7 @@ await fetch(`${API_BASE}/api/v1/auth/session`, {
 인증 흐름은 로그인 → 세션 확인 → 로그아웃 순서입니다.
 
 ```bash
-API_BASE=http://161.33.165.110
+API_BASE=https://api.popn.gg
 COOKIE_JAR=./popngg-cookie.txt
 LOGIN_PASSWORD='<64-char-lowercase-hex-password>'
 
