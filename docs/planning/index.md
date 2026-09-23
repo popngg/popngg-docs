@@ -18,6 +18,11 @@
     <strong>MVP 범위</strong>
     <p>출시를 위해 반드시 필요한 기능과 후순위로 미룰 기능을 구분합니다.</p>
   </a>
+  <a class="doc-card" href="level-tier-list-plan/">
+    <span class="doc-card__eyebrow">Tier List</span>
+    <strong>레벨별 서열표 구현 계획</strong>
+    <p>구 팝클과 클리어 기록 기반 서열 산정, 개인 기록 이미지 저장, 유저 투표 기여를 계획합니다.</p>
+  </a>
   <a class="doc-card" href="service-research/">
     <span class="doc-card__eyebrow">Research</span>
     <strong>서비스와 게임 리서치</strong>

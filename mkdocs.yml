@@ -67,6 +67,7 @@ nav:
       - 개요: planning/index.md
       - 프로젝트 개요: planning/overview.md
       - MVP 범위: planning/mvp-scope.md
+      - 레벨별 서열표 구현 계획: planning/level-tier-list-plan.md
       - 서비스와 게임 리서치: planning/service-research.md
       - 게임 시스템: game-system.md
   - 설계:
